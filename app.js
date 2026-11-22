@@ -179,12 +179,16 @@ function esc(s) {
 function getReadMap() {
   try { return JSON.parse(localStorage.getItem(READ_KEY) || "{}"); } catch { return {}; }
 }
+const READ_KEEP_DAYS = 60;
 function markTabRead(date, tabId) {
   if (!date || !tabId) return;
   const map = getReadMap();
   const set = new Set(map[date] || []);
   set.add(tabId);
   map[date] = Array.from(set);
+  // Keep only the most recent READ_KEEP_DAYS issue dates.
+  const dates = Object.keys(map).sort().reverse();
+  for (const d of dates.slice(READ_KEEP_DAYS)) delete map[d];
   localStorage.setItem(READ_KEY, JSON.stringify(map));
 }
 function isTabRead(date, tabId) {
@@ -231,7 +235,7 @@ let speechRate = 1.0;
 let isSpeaking = false;
 let audioEl = null;
 let activeAudioFile = "";
-const decryptedAudioUrls = new Map();
+let decryptedAudio = { path: "", url: "" }; // only the current issue's audio stays in memory
 
 function formatTime(sec) {
   if (!Number.isFinite(sec) || sec < 0) return "0:00";
@@ -241,7 +245,7 @@ function formatTime(sec) {
 }
 
 async function fetchDecryptedAudioUrl(relPath, cryptoKey) {
-  if (decryptedAudioUrls.has(relPath)) return decryptedAudioUrls.get(relPath);
+  if (decryptedAudio.path === relPath) return decryptedAudio.url;
   const res = await fetch(`${relPath}?t=${Date.now()}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`音檔載入失敗 (${res.status})`);
   const buf = new Uint8Array(await res.arrayBuffer());
@@ -250,16 +254,20 @@ async function fetchDecryptedAudioUrl(relPath, cryptoKey) {
   const plainBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, cryptoKey, ct);
   const blob = new Blob([plainBuf], { type: "audio/mpeg" });
   const url = URL.createObjectURL(blob);
-  decryptedAudioUrls.set(relPath, url);
+  if (decryptedAudio.url) URL.revokeObjectURL(decryptedAudio.url);
+  decryptedAudio = { path: relPath, url };
   return url;
 }
 
+// Fallback for system speech. New issues carry `audio_script` (the exact text
+// publish.mjs sent to TTS); the rest mirrors publish.mjs for older issues.
 function composeAudioScript(report) {
-  if (report.audio_brief) return report.audio_brief;
+  if (report.audio_script && String(report.audio_script).trim()) return String(report.audio_script).trim();
+  if (report.audio_brief && String(report.audio_brief).trim()) return String(report.audio_brief).trim();
   const parts = [`早安，為您播報 ${report.date} 全球深度日報重點。`];
   if (report.subtitle) parts.push(report.subtitle);
   (report.executive_summary || []).forEach((line, i) => {
-    parts.push(`重點 ${i + 1}：${line}`);
+    parts.push(`重點 ${i + 1}，${line}`);
   });
   parts.push("以上是今日核心重點播報。");
   return parts.join(" ");
@@ -530,7 +538,13 @@ function renderOverview(report) {
            `).join("")}
          </div>
        </div>`
-    : "";
+    : `<div class="card">
+         <div class="card-head-row">
+           <div class="card-title">自選關注清單</div>
+           <button id="openWatchlistBtn" style="font-size:12px;padding:4px 10px;">⚙ 管理清單</button>
+         </div>
+         <p class="subtitle" style="font-size:13px;margin:0;">本期沒有自選標的動態。可在這裡新增追蹤的個股或總經指標，明早的日報就會開始追蹤。</p>
+       </div>`;
 
   const topicsHtml = (report.sections || []).length
     ? `<div class="card">
@@ -667,7 +681,7 @@ function renderActiveTab() {
     ${bodyHtml}
     ${renderPager()}
     <div class="footer-note">
-      v2.6 · AES-256-GCM 本機端對端解密 · 支援離線閱讀與左右滑動切換 · ${esc(currentReport.generated_at || currentReport.date)}
+      v2.7 · AES-256-GCM 本機端對端解密 · 支援離線閱讀與左右滑動切換 · ${esc(currentReport.generated_at || currentReport.date)}
     </div>
   `;
 
@@ -1193,12 +1207,14 @@ document.getElementById("issueSelect").addEventListener("change", (e) => {
   if (e.target.value) loadIssue(e.target.value);
 });
 
+const DATA_CACHE_NAME = "world-brief-data-v1"; // must match DATA_CACHE in sw.js
 document.getElementById("refreshBtn").addEventListener("click", async () => {
   decryptedCache.clear();
   if ("caches" in window) {
     try {
+      // Drop only the app shell; keep downloaded issues for offline reading.
       const keys = await caches.keys();
-      await Promise.all(keys.map((k) => caches.delete(k)));
+      await Promise.all(keys.filter((k) => k !== DATA_CACHE_NAME).map((k) => caches.delete(k)));
     } catch {}
   }
   if ("serviceWorker" in navigator) {
