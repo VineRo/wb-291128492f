@@ -1,7 +1,8 @@
-const CACHE_NAME = "world-brief-v2.4";
+const CACHE_NAME = "world-brief-v2.6";
 const SHELL_ASSETS = [
   "./",
   "./index.html",
+  "./app.js?v=6",
   "./apple-touch-icon.png?v=4",
   "./icon-512.png?v=4",
 ];
