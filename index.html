@@ -456,6 +456,14 @@
       color: var(--up);
       background: color-mix(in srgb, var(--up) 13%, transparent);
     }
+    .badge-rumor {
+      color: #b45309;
+      background: rgba(217, 119, 6, 0.14);
+    }
+    [data-theme="dark"] .badge-rumor {
+      color: #fbbf24;
+      background: rgba(251, 191, 36, 0.16);
+    }
     .topic-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
@@ -824,7 +832,22 @@
           <button id="wlAddBtn" class="btn-accent" style="padding:8px 14px;">＋ 新增</button>
         </div>
       </div>
-      <div style="display:flex;gap:8px;margin-top:10px;">
+
+      <div id="industryTopicsSection" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border);">
+        <div class="card-title" style="margin-bottom:6px;">🔬 產業深水區追蹤主題（客製化）</div>
+        <p class="subtitle" style="font-size:12.5px;margin-bottom:10px;">每日自動追蹤垂直供應鏈媒體與一手申報資料，並標註「官方證實 / 多方佐證 / 供應鏈傳聞」。</p>
+        <div id="indTopicsList"></div>
+        <div class="card" style="padding:12px;margin-top:8px;">
+          <div class="card-title" style="margin-bottom:8px;">新增產業主題</div>
+          <input id="indNameInput" class="wl-input" maxlength="40" placeholder="主題名稱（如：機器人、低軌衛星、重電）" style="margin-bottom:6px;" />
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input id="indFocusInput" class="wl-input" maxlength="80" placeholder="關注焦點／關鍵字（選填）" style="flex:1;" />
+            <button id="indAddBtn" class="btn-accent" style="padding:8px 14px;white-space:nowrap;">＋ 新增</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:12px;">
         <button id="wlSyncBtn" class="btn-primary" style="flex:1;">儲存並加密同步至排程</button>
         <button id="wlCopyBtn" style="padding:10px 12px;">複製清單</button>
       </div>
@@ -842,6 +865,6 @@
 
   <div id="toast" class="toast"></div>
 
-  <script src="./app.js?v=7"></script>
+  <script src="./app.js?v=8"></script>
 </body>
 </html>

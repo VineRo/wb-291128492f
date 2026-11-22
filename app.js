@@ -6,6 +6,7 @@ const BOOKMARKS_KEY = "wb_bookmarks_v1";
 
 const SHORT_TAB_NAMES = {
   taiwan: "台灣焦點",
+  industry: "產業深水區",
   economy: "國際經濟",
   markets: "金融市場",
   politics: "國際政治",
@@ -592,11 +593,24 @@ function renderOverview(report) {
 function renderSection(sec, report) {
   return `
     <div class="section-banner">
-      <h2>${esc(sec.name)}</h2>
-      <span>${esc(report.date)} · ${(sec.items || []).length} 則分析</span>
+      <div>
+        <h2>${esc(sec.name)}</h2>
+        <span>${esc(report.date)} · ${(sec.items || []).length} 則分析</span>
+      </div>
+      ${sec.id === "industry" ? `<button id="openIndustryCfgBtn" style="font-size:12px;padding:5px 10px;">⚙ 客製產業主題</button>` : ""}
     </div>
     ${(sec.items || []).map((item, idx) => {
       const saved = isBookmarked(report.date, item.headline);
+      const sectorBadge = item.sector
+        ? `<span class="badge badge-watch">${esc(item.sector)}</span>`
+        : "";
+      const credBadge = item.credibility === "official"
+        ? `<span class="badge badge-followup">官方證實</span>`
+        : item.credibility === "corroborated"
+          ? `<span class="badge badge-watch">多方佐證</span>`
+          : item.credibility === "rumor"
+            ? `<span class="badge badge-rumor">供應鏈傳聞・待證實</span>`
+            : "";
       const priorityBadge = item.priority === "high"
         ? `<span class="badge badge-high">高影響</span>`
         : item.priority === "watch"
@@ -608,7 +622,7 @@ function renderSection(sec, report) {
       return `
         <div class="card news-item">
           <div class="item-meta-row">
-            <div class="item-badges">${priorityBadge}${followBadge}</div>
+            <div class="item-badges">${sectorBadge}${credBadge}${priorityBadge}${followBadge}</div>
             <button class="star-btn ${saved ? "saved" : ""}" data-star-sec="${esc(sec.id)}" data-star-idx="${idx}" title="收藏這則分析">
               ${saved ? "★ 已收藏" : "☆ 收藏"}
             </button>
@@ -701,7 +715,9 @@ function renderActiveTab() {
   });
 
   const openWlBtn = document.getElementById("openWatchlistBtn");
-  if (openWlBtn) openWlBtn.addEventListener("click", openWatchlistModal);
+  if (openWlBtn) openWlBtn.addEventListener("click", () => openWatchlistModal(false));
+  const openIndBtn = document.getElementById("openIndustryCfgBtn");
+  if (openIndBtn) openIndBtn.addEventListener("click", () => openWatchlistModal(true));
 
   const playBtn = document.getElementById("audioPlayBtn");
   if (playBtn) playBtn.addEventListener("click", toggleSpeech);
@@ -964,7 +980,16 @@ const GH_SYNC_REPO_KEY = "wb_gh_sync_repo_v1";
 // so prefer a separate private sync repo (set in the watchlist settings panel).
 const PAGES_REPO = "VineRo/wb-291128492f";
 const WL_MAX_ITEMS = 50;
-let editableWatchlist = { updated_at: new Date().toISOString(), items: [] };
+const IND_MAX_TOPICS = 20;
+const DEFAULT_INDUSTRY_TOPICS = [
+  { name: "CoWoS／先進封裝", focus: "台積電、日月光、矽品、精材、CoWoS-L 產能與外包" },
+  { name: "HBM 記憶體", focus: "SK 海力士、美光、三星、HBM4 驗證與設備訂單" },
+  { name: "AI 伺服器 ODM", focus: "鴻海、廣達、緯創、緯穎、GB300 與 Vera Rubin 機櫃出貨" },
+  { name: "矽光子", focus: "台積電 COUPE、CPO 交換器、博通、輝達、光電測試與 InP 基板" },
+  { name: "生技", focus: "FDA 藥證審查、臨床試驗數據、大藥廠併購與授權" },
+  { name: "航運", focus: "Drewry／SCFI 運價、紅海繞道、荷姆茲海峽通行量與貨櫃航商" },
+];
+let editableWatchlist = { updated_at: new Date().toISOString(), items: [], industry_topics: DEFAULT_INDUSTRY_TOPICS };
 
 function getSyncTarget() {
   const repo = localStorage.getItem(GH_SYNC_REPO_KEY) || PAGES_REPO;
@@ -997,7 +1022,34 @@ function renderWatchlistModalItems() {
   });
 }
 
-async function openWatchlistModal() {
+function renderIndustryTopicsModal() {
+  const box = document.getElementById("indTopicsList");
+  if (!box) return;
+  const topics = editableWatchlist.industry_topics || [];
+  if (!topics.length) {
+    box.innerHTML = `<p class="subtitle">目前未設定產業主題，請於下方新增。</p>`;
+    return;
+  }
+  box.innerHTML = topics.map((t, i) => `
+    <div class="wl-item-row">
+      <div>
+        <div style="font-weight:800;font-size:14px;">${esc(t.name)}</div>
+        ${t.focus ? `<div style="font-size:11.5px;color:var(--muted);">${esc(t.focus)}</div>` : ""}
+      </div>
+      <button data-rm-ind="${i}" style="color:var(--signal);border-color:var(--border);">移除</button>
+    </div>
+  `).join("");
+  box.querySelectorAll("[data-rm-ind]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      editableWatchlist.industry_topics.splice(Number(btn.dataset.rmInd), 1);
+      editableWatchlist.updated_at = new Date().toISOString();
+      localStorage.setItem(WL_LOCAL_KEY, JSON.stringify(editableWatchlist));
+      renderIndustryTopicsModal();
+    });
+  });
+}
+
+async function openWatchlistModal(scrollToIndustry = false) {
   setModalOpen("watchlistModal", true);
   document.getElementById("ghTokenInput").value = localStorage.getItem(GH_TOKEN_KEY) || "";
   document.getElementById("ghRepoInput").value = localStorage.getItem(GH_SYNC_REPO_KEY) || "";
@@ -1019,9 +1071,18 @@ async function openWatchlistModal() {
             symbol: w.symbol || "",
             type: w.type || "macro",
           })),
+          industry_topics: DEFAULT_INDUSTRY_TOPICS,
         };
   }
+  if (!Array.isArray(editableWatchlist.industry_topics)) {
+    editableWatchlist.industry_topics = [...DEFAULT_INDUSTRY_TOPICS];
+  }
   renderWatchlistModalItems();
+  renderIndustryTopicsModal();
+  if (scrollToIndustry) {
+    const sec = document.getElementById("industryTopicsSection");
+    if (sec) sec.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 }
 
 document.getElementById("closeWatchlistBtn").addEventListener("click", () => {
@@ -1050,6 +1111,27 @@ document.getElementById("wlAddBtn").addEventListener("click", () => {
   showToast(`已加入 ${name}`);
 });
 
+document.getElementById("indAddBtn").addEventListener("click", () => {
+  const name = document.getElementById("indNameInput").value.trim();
+  const focus = document.getElementById("indFocusInput").value.trim();
+  if (!name) {
+    showToast("請輸入產業主題名稱");
+    return;
+  }
+  editableWatchlist.industry_topics = editableWatchlist.industry_topics || [];
+  if (editableWatchlist.industry_topics.length >= IND_MAX_TOPICS) {
+    showToast(`產業主題最多 ${IND_MAX_TOPICS} 項`);
+    return;
+  }
+  editableWatchlist.industry_topics.push(focus ? { name, focus } : { name });
+  editableWatchlist.updated_at = new Date().toISOString();
+  localStorage.setItem(WL_LOCAL_KEY, JSON.stringify(editableWatchlist));
+  document.getElementById("indNameInput").value = "";
+  document.getElementById("indFocusInput").value = "";
+  renderIndustryTopicsModal();
+  showToast(`已加入產業主題：${name}`);
+});
+
 document.getElementById("saveGhTokenBtn").addEventListener("click", () => {
   const tok = document.getElementById("ghTokenInput").value.trim();
   const repo = document.getElementById("ghRepoInput").value.trim();
@@ -1072,7 +1154,10 @@ document.getElementById("wlCopyBtn").addEventListener("click", async () => {
   const summary = (editableWatchlist.items || [])
     .map((it) => `- ${it.name}${it.symbol ? ` (${it.symbol})` : ""} [${it.type === "stock" ? "個股" : "總經"}]`)
     .join("\n");
-  const text = `請幫我更新 Daily World Brief 的自選清單為：\n${summary}`;
+  const indSummary = (editableWatchlist.industry_topics || [])
+    .map((t) => `- ${t.name}${t.focus ? `（${t.focus}）` : ""}`)
+    .join("\n");
+  const text = `請幫我更新 Daily World Brief 的自選清單為：\n${summary}\n\n產業深水區主題：\n${indSummary}`;
   try {
     await navigator.clipboard.writeText(text);
     showToast("已複製清單，可直接貼給 Antigravity 更新");
