@@ -213,15 +213,38 @@
     }
     .audio-bar {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
+      flex-direction: column;
       gap: 10px;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 12px 14px;
+      padding: 13px 14px;
       margin-bottom: 14px;
       box-shadow: var(--shadow);
+    }
+    .audio-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .audio-progress-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .audio-range {
+      flex: 1;
+      accent-color: var(--signal);
+      height: 4px;
+      cursor: pointer;
+    }
+    .audio-time {
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      color: var(--muted);
+      min-width: 72px;
+      text-align: right;
     }
     .audio-info {
       display: flex;
@@ -868,9 +891,34 @@
       renderActiveTab();
     }
 
-    // Audio Briefing (Web Speech API - 100% client-side, zero-knowledge)
-    let speechRate = 1.1;
+    // Audio Briefing (Encrypted Neural MP3 with Web Speech API fallback)
+    let speechRate = 1.0;
     let isSpeaking = false;
+    let audioEl = null;
+    let activeAudioFile = "";
+    const decryptedAudioUrls = new Map();
+
+    function formatTime(sec) {
+      if (!Number.isFinite(sec) || sec < 0) return "0:00";
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${m}:${String(s).padStart(2, "0")}`;
+    }
+
+    async function fetchDecryptedAudioUrl(relPath, cryptoKey) {
+      if (decryptedAudioUrls.has(relPath)) return decryptedAudioUrls.get(relPath);
+      const res = await fetch(`${relPath}?t=${Date.now()}`, { cache: "no-store" });
+      if (!res.ok) throw new Error(`音檔載入失敗 (${res.status})`);
+      const buf = new Uint8Array(await res.arrayBuffer());
+      const iv = buf.slice(0, 12);
+      const ct = buf.slice(12);
+      const plainBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, cryptoKey, ct);
+      const blob = new Blob([plainBuf], { type: "audio/mpeg" });
+      const url = URL.createObjectURL(blob);
+      decryptedAudioUrls.set(relPath, url);
+      return url;
+    }
+
     function composeAudioScript(report) {
       if (report.audio_brief) return report.audio_brief;
       const parts = [`早安，為您播報 ${report.date} 全球深度日報重點。`];
@@ -881,27 +929,98 @@
       parts.push("以上是今日核心重點播報。");
       return parts.join(" ");
     }
+
     function stopSpeech() {
+      if (audioEl) {
+        audioEl.pause();
+        audioEl.currentTime = 0;
+      }
       if ("speechSynthesis" in window) window.speechSynthesis.cancel();
       isSpeaking = false;
-      updateAudioUi("點擊開始收聽今日重點");
+      updateAudioUi("點擊開始收聽主播語音摘要");
     }
+
     function updateAudioUi(statusText) {
       const btn = document.getElementById("audioPlayBtn");
       const st = document.getElementById("audioStatus");
-      if (btn) btn.textContent = isSpeaking ? "■ 停止" : "▶ 播報";
+      if (btn) btn.textContent = isSpeaking ? "⏸ 暫停" : "▶ 播報";
       if (st && statusText) st.textContent = statusText;
     }
-    function toggleSpeech() {
+
+    function syncAudioProgress() {
+      const range = document.getElementById("audioRange");
+      const timeEl = document.getElementById("audioTime");
+      if (!audioEl || !range || !timeEl) return;
+      const dur = audioEl.duration || 0;
+      const cur = audioEl.currentTime || 0;
+      range.max = dur ? Math.floor(dur) : 100;
+      range.value = Math.floor(cur);
+      timeEl.textContent = `${formatTime(cur)} / ${formatTime(dur)}`;
+    }
+
+    async function toggleSpeech() {
+      if (!currentReport) return;
+
+      // Prefer encrypted Neural MP3 audio
+      if (currentReport.audio_file) {
+        try {
+          if (!audioEl) {
+            audioEl = new Audio();
+            audioEl.preload = "metadata";
+            audioEl.addEventListener("timeupdate", syncAudioProgress);
+            audioEl.addEventListener("loadedmetadata", syncAudioProgress);
+            audioEl.addEventListener("ended", () => {
+              isSpeaking = false;
+              updateAudioUi("播報完畢");
+            });
+            audioEl.addEventListener("pause", () => {
+              if (!audioEl.ended) {
+                isSpeaking = false;
+                updateAudioUi("已暫停");
+              }
+            });
+            audioEl.addEventListener("play", () => {
+              isSpeaking = true;
+              updateAudioUi(`神經網路主播播報中（${speechRate}x）`);
+            });
+          }
+
+          if (activeAudioFile !== currentReport.audio_file) {
+            updateAudioUi("正在本機解密音檔…");
+            const url = await fetchDecryptedAudioUrl(`./data/${currentReport.audio_file}`, currentCryptoKey);
+            audioEl.src = url;
+            activeAudioFile = currentReport.audio_file;
+            if ("mediaSession" in navigator) {
+              navigator.mediaSession.metadata = new MediaMetadata({
+                title: `全球深度日報 · ${currentReport.date}`,
+                artist: "Daily World Brief",
+                artwork: [{ src: "./icon-512.png?v=4", sizes: "512x512", type: "image/png" }],
+              });
+            }
+          }
+
+          audioEl.playbackRate = speechRate;
+          if (audioEl.paused) {
+            await audioEl.play();
+          } else {
+            audioEl.pause();
+          }
+          return;
+        } catch (err) {
+          console.error(err);
+          showToast("音檔播放失敗，改用系統語音");
+        }
+      }
+
+      // Fallback: browser Web Speech API
       if (!("speechSynthesis" in window)) {
-        showToast("此瀏覽器不支援內建語音播報");
+        showToast("此瀏覽器不支援語音播報");
         return;
       }
       if (isSpeaking) {
         stopSpeech();
         return;
       }
-      if (!currentReport) return;
       window.speechSynthesis.cancel();
       const utter = new SpeechSynthesisUtterance(composeAudioScript(currentReport));
       utter.lang = "zh-TW";
@@ -994,14 +1113,21 @@
     function renderOverview(report) {
       const audioHtml = `
         <div class="audio-bar">
-          <div class="audio-info">
-            <span class="audio-title">🎧 晨間語音重點播報</span>
-            <span class="audio-status" id="audioStatus">${isSpeaking ? `正在播報（${speechRate}x）…` : "本機語音合成，通勤免看螢幕"}</span>
+          <div class="audio-top">
+            <div class="audio-info">
+              <span class="audio-title">🎧 晨間主播語音重點播報</span>
+              <span class="audio-status" id="audioStatus">${isSpeaking ? `神經網路主播播報中（${speechRate}x）` : (report.audio_file ? "台灣神經網路主播 · 本機加密解密播放" : "本機語音合成")}</span>
+            </div>
+            <div class="audio-actions">
+              <button id="audioSpeedBtn">${speechRate}x</button>
+              <button id="audioPlayBtn" class="btn-accent">${isSpeaking ? "⏸ 暫停" : "▶ 播報"}</button>
+            </div>
           </div>
-          <div class="audio-actions">
-            <button id="audioSpeedBtn">${speechRate}x</button>
-            <button id="audioPlayBtn" class="btn-accent">${isSpeaking ? "■ 停止" : "▶ 播報"}</button>
-          </div>
+          ${report.audio_file ? `
+            <div class="audio-progress-row">
+              <input type="range" id="audioRange" class="audio-range" min="0" max="100" value="0" />
+              <span class="audio-time" id="audioTime">0:00 / 0:00</span>
+            </div>` : ""}
         </div>
       `;
 
@@ -1181,7 +1307,7 @@
         ${bodyHtml}
         ${renderPager()}
         <div class="footer-note">
-          v2.1 · AES-256-GCM 本機端對端解密 · 支援離線閱讀與左右滑動切換 · ${esc(currentReport.generated_at || currentReport.date)}
+          v2.2 · AES-256-GCM 本機端對端解密 · 支援離線閱讀與左右滑動切換 · ${esc(currentReport.generated_at || currentReport.date)}
         </div>
       `;
 
@@ -1201,13 +1327,26 @@
 
       const playBtn = document.getElementById("audioPlayBtn");
       if (playBtn) playBtn.addEventListener("click", toggleSpeech);
+      const rangeEl = document.getElementById("audioRange");
+      if (rangeEl) {
+        syncAudioProgress();
+        rangeEl.addEventListener("input", (e) => {
+          if (audioEl && Number.isFinite(audioEl.duration)) {
+            audioEl.currentTime = Number(e.target.value);
+            syncAudioProgress();
+          }
+        });
+      }
       const speedBtn = document.getElementById("audioSpeedBtn");
       if (speedBtn) {
         speedBtn.addEventListener("click", () => {
-          const speeds = [1.0, 1.1, 1.25, 1.5];
+          const speeds = [1.0, 1.15, 1.25, 1.5];
           speechRate = speeds[(speeds.indexOf(speechRate) + 1) % speeds.length];
           speedBtn.textContent = `${speechRate}x`;
-          if (isSpeaking) {
+          if (audioEl && !audioEl.paused) {
+            audioEl.playbackRate = speechRate;
+            updateAudioUi(`神經網路主播播報中（${speechRate}x）`);
+          } else if (isSpeaking && !currentReport?.audio_file) {
             stopSpeech();
             toggleSpeech();
           }
