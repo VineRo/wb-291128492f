@@ -575,6 +575,25 @@ function renderOverview(report) {
        </div>`
     : "";
 
+  const correctionsHtml = (report.corrections || []).length
+    ? `<div class="card">
+         <div class="card-title">更正紀錄</div>
+         <div class="watchlist-list">
+           ${report.corrections.map((c) => `
+             <div class="watch-row">
+               <div class="watch-row-top">
+                 <span class="watch-name">${esc(c.item_headline || "內容更正")}</span>
+                 <span class="badge badge-watch">${esc(c.corrected_at || "")}</span>
+               </div>
+               <div class="watch-note"><strong>原說法：</strong>${esc(c.original_claim)}</div>
+               <div class="watch-status"><strong>修正後：</strong>${esc(c.corrected_claim)}</div>
+               <div class="watch-note"><strong>更正依據：</strong>${esc(c.basis)}</div>
+             </div>
+           `).join("")}
+         </div>
+       </div>`
+    : "";
+
   return `
     ${renderMissingTodayBanner(report)}
     <div class="masthead">
@@ -591,6 +610,7 @@ function renderOverview(report) {
     ${renderEarningsCalendar(report)}
     ${renderWatchReview(report)}
     ${watchHtml}
+    ${correctionsHtml}
   `;
 }
 
