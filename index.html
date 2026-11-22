@@ -369,6 +369,70 @@
       font-size: 13px;
       color: var(--muted);
     }
+    .card-head-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .card-head-row .card-title { margin: 0; }
+    .watch-earnings-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 9px;
+    }
+    .earnings-recap {
+      margin-top: 6px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+    .earnings-recap summary {
+      cursor: pointer;
+      font-weight: 800;
+      color: var(--accent);
+      list-style: none;
+    }
+    .earnings-recap summary::-webkit-details-marker { display: none; }
+    .earnings-recap[open] summary { margin-bottom: 8px; }
+    .earnings-recap ul { margin: 4px 0 8px; padding-left: 18px; }
+    .wl-item-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 12px;
+      margin-bottom: 8px;
+    }
+    .wl-form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .wl-input {
+      width: 100%;
+      padding: 9px 10px;
+      font-size: 13.5px;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+    }
     .badge {
       display: inline-flex;
       align-items: center;
@@ -718,6 +782,44 @@
     </div>
   </div>
 
+  <!-- Watchlist Manager Modal -->
+  <div id="watchlistModal" class="modal-backdrop hidden">
+    <div class="modal-sheet">
+      <div class="modal-head">
+        <h3>管理自選關注清單</h3>
+        <button id="closeWatchlistBtn">✕</button>
+      </div>
+      <p class="subtitle" style="font-size:13px;margin-bottom:12px;">標記為「個股」的標的會自動追蹤下次法說會／財報電話會議時程，並於會後整理重點報告。</p>
+      <div id="wlItemsList"></div>
+      <div class="card" style="padding:12px;margin-top:10px;">
+        <div class="card-title" style="margin-bottom:8px;">新增追蹤標的</div>
+        <div class="wl-form-grid">
+          <input id="wlNameInput" class="wl-input" placeholder="名稱（如：蘋果 Apple）" />
+          <input id="wlSymbolInput" class="wl-input" placeholder="代碼（如：AAPL / 2317）" />
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select id="wlTypeSelect" style="flex:1;padding:8px;">
+            <option value="stock">個股（追蹤法說／財報會議）</option>
+            <option value="macro">總經／指數／商品／匯率</option>
+          </select>
+          <button id="wlAddBtn" class="btn-accent" style="padding:8px 14px;">＋ 新增</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button id="wlSyncBtn" class="btn-primary" style="flex:1;">儲存並加密同步至排程</button>
+        <button id="wlCopyBtn" style="padding:10px 12px;">複製清單</button>
+      </div>
+      <details style="margin-top:12px;font-size:12.5px;color:var(--muted);">
+        <summary style="cursor:pointer;font-weight:700;">⚙ 設定手機一鍵雲端同步（選配，免設定也可按「複製清單」）</summary>
+        <p style="margin:6px 0;">貼上一組僅授權 <code>VineRo/wb-291128492f</code> Contents 讀寫權限的 GitHub Fine-Grained Token（僅存於本機手機瀏覽器），以後在手機增減標的即可直接加密同步回每天早上 8:00 的排程。</p>
+        <div style="display:flex;gap:6px;">
+          <input type="password" id="ghTokenInput" class="wl-input" placeholder="github_pat_..." autocomplete="off" />
+          <button id="saveGhTokenBtn" style="white-space:nowrap;">儲存 Token</button>
+        </div>
+      </details>
+    </div>
+  </div>
+
   <div id="toast" class="toast"></div>
 
   <script>
@@ -815,7 +917,20 @@
     async function importAesKey(keyB64Url) {
       const rawBytes = b64urlToBytes(keyB64Url);
       if (rawBytes.length !== 32) throw new Error("金鑰長度不正確");
-      return crypto.subtle.importKey("raw", rawBytes, { name: "AES-GCM" }, false, ["decrypt"]);
+      return crypto.subtle.importKey("raw", rawBytes, { name: "AES-GCM" }, false, ["decrypt", "encrypt"]);
+    }
+
+    function bytesToB64(bytes) {
+      let bin = "";
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      return btoa(bin);
+    }
+
+    async function encryptJsonPayload(obj, cryptoKey) {
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const plain = new TextEncoder().encode(JSON.stringify(obj));
+      const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, cryptoKey, plain));
+      return JSON.stringify({ v: 1, iv: bytesToB64(iv), ct: bytesToB64(ct) });
     }
 
     async function decryptPayload(payload, cryptoKey) {
@@ -1156,16 +1271,41 @@
 
       const watchlistHtml = (report.watchlist_updates || []).length
         ? `<div class="card">
-             <div class="card-title">自選關注清單動態</div>
+             <div class="card-head-row">
+               <div class="card-title">自選關注清單動態</div>
+               <button id="openWatchlistBtn" style="font-size:12px;padding:4px 10px;">⚙ 管理清單</button>
+             </div>
              <div class="watchlist-list">
                ${report.watchlist_updates.map((w) => `
                  <div class="watch-row">
                    <div class="watch-row-top">
                      <span class="watch-name">${esc(w.name)}</span>
-                     ${w.signal === "high" ? `<span class="badge badge-high">高影響</span>` : w.signal === "watch" ? `<span class="badge badge-watch">觀察</span>` : ""}
+                     <div style="display:flex;gap:5px;align-items:center;">
+                       ${w.type === "stock" ? `<span class="badge badge-watch">個股</span>` : ""}
+                       ${w.signal === "high" ? `<span class="badge badge-high">高影響</span>` : w.signal === "watch" ? `<span class="badge badge-watch">觀察</span>` : ""}
+                     </div>
                    </div>
                    <div class="watch-status">${esc(w.status)}</div>
                    ${w.note ? `<div class="watch-note">${esc(w.note)}</div>` : ""}
+                   ${w.next_earnings ? `
+                     <div class="watch-earnings-row">
+                       <span>📅 下次法說／財報會議：${esc(w.next_earnings.event || "")} · ${esc(w.next_earnings.date || "")}</span>
+                     </div>` : ""}
+                   ${w.earnings_recap ? `
+                     <details class="earnings-recap">
+                       <summary>📋 ${esc(w.earnings_recap.event_title || "查看最新法說／電話會議重點報告")} ▾</summary>
+                       ${(w.earnings_recap.metrics || []).length ? `
+                         <div><strong>關鍵財報數據：</strong></div>
+                         <ul>${w.earnings_recap.metrics.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>` : ""}
+                       ${w.earnings_recap.guidance ? `<div style="margin-bottom:6px;"><strong>下季財測指引：</strong>${esc(w.earnings_recap.guidance)}</div>` : ""}
+                       ${(w.earnings_recap.highlights || []).length ? `
+                         <div><strong>會議重點摘要：</strong></div>
+                         <ul>${w.earnings_recap.highlights.map((h) => `<li>${esc(h)}</li>`).join("")}</ul>` : ""}
+                       ${(w.earnings_recap.sources || []).length ? `
+                         <div class="sources" style="margin-top:6px;">
+                           ${w.earnings_recap.sources.map((s) => `<a class="source-link" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.name)} ↗</a>`).join("")}
+                         </div>` : ""}
+                     </details>` : ""}
                  </div>
                `).join("")}
              </div>
@@ -1307,7 +1447,7 @@
         ${bodyHtml}
         ${renderPager()}
         <div class="footer-note">
-          v2.2 · AES-256-GCM 本機端對端解密 · 支援離線閱讀與左右滑動切換 · ${esc(currentReport.generated_at || currentReport.date)}
+          v2.3 · AES-256-GCM 本機端對端解密 · 支援離線閱讀與左右滑動切換 · ${esc(currentReport.generated_at || currentReport.date)}
         </div>
       `;
 
@@ -1324,6 +1464,9 @@
           if (sec && item) toggleBookmark(currentReport.date, sec.id, sec.name, item);
         });
       });
+
+      const openWlBtn = document.getElementById("openWatchlistBtn");
+      if (openWlBtn) openWlBtn.addEventListener("click", openWatchlistModal);
 
       const playBtn = document.getElementById("audioPlayBtn");
       if (playBtn) playBtn.addEventListener("click", toggleSpeech);
@@ -1488,6 +1631,152 @@
     });
     document.getElementById("closeBookmarksBtn").addEventListener("click", () => {
       document.getElementById("bookmarksModal").classList.add("hidden");
+    });
+
+    // Watchlist Manager Modal (Local edit + optional encrypted GitHub Sync)
+    const WL_LOCAL_KEY = "wb_watchlist_local_v1";
+    const GH_TOKEN_KEY = "wb_gh_sync_token_v1";
+    const GH_REPO = "VineRo/wb-291128492f";
+    let editableWatchlist = { updated_at: new Date().toISOString(), items: [] };
+
+    function renderWatchlistModalItems() {
+      const box = document.getElementById("wlItemsList");
+      const items = editableWatchlist.items || [];
+      if (!items.length) {
+        box.innerHTML = `<p class="subtitle">目前清單為空，請於下方新增標的。</p>`;
+        return;
+      }
+      box.innerHTML = items.map((it, i) => `
+        <div class="wl-item-row">
+          <div>
+            <div style="font-weight:800;font-size:14px;">${esc(it.name)} <span style="font-weight:600;color:var(--muted);font-size:12px;">${esc(it.symbol || "")}</span></div>
+            <div style="font-size:11.5px;color:var(--accent);">${it.type === "stock" ? "📈 個股（追蹤法說／財報會議）" : "🌐 總經／指數／商品"}</div>
+          </div>
+          <button data-rm-wl="${i}" style="color:var(--signal);border-color:var(--border);">移除</button>
+        </div>
+      `).join("");
+      box.querySelectorAll("[data-rm-wl]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          editableWatchlist.items.splice(Number(btn.dataset.rmWl), 1);
+          editableWatchlist.updated_at = new Date().toISOString();
+          localStorage.setItem(WL_LOCAL_KEY, JSON.stringify(editableWatchlist));
+          renderWatchlistModalItems();
+        });
+      });
+    }
+
+    async function openWatchlistModal() {
+      document.getElementById("watchlistModal").classList.remove("hidden");
+      document.getElementById("ghTokenInput").value = localStorage.getItem(GH_TOKEN_KEY) || "";
+      try {
+        const remote = await fetchEncryptedJson("./data/watchlist.enc", currentCryptoKey);
+        const localRaw = localStorage.getItem(WL_LOCAL_KEY);
+        const local = localRaw ? JSON.parse(localRaw) : null;
+        const rTs = Date.parse(remote.updated_at || 0) || 0;
+        const lTs = local ? (Date.parse(local.updated_at || 0) || 0) : 0;
+        editableWatchlist = lTs > rTs ? local : remote;
+      } catch {
+        const localRaw = localStorage.getItem(WL_LOCAL_KEY);
+        editableWatchlist = localRaw
+          ? JSON.parse(localRaw)
+          : {
+              updated_at: new Date().toISOString(),
+              items: (currentReport?.watchlist_updates || []).map((w) => ({
+                name: w.name,
+                symbol: w.symbol || "",
+                type: w.type || "macro",
+              })),
+            };
+      }
+      renderWatchlistModalItems();
+    }
+
+    document.getElementById("closeWatchlistBtn").addEventListener("click", () => {
+      document.getElementById("watchlistModal").classList.add("hidden");
+    });
+
+    document.getElementById("wlAddBtn").addEventListener("click", () => {
+      const name = document.getElementById("wlNameInput").value.trim();
+      const symbol = document.getElementById("wlSymbolInput").value.trim();
+      const type = document.getElementById("wlTypeSelect").value;
+      if (!name) {
+        showToast("請輸入標的名稱");
+        return;
+      }
+      editableWatchlist.items = editableWatchlist.items || [];
+      editableWatchlist.items.push({ name, symbol, type });
+      editableWatchlist.updated_at = new Date().toISOString();
+      localStorage.setItem(WL_LOCAL_KEY, JSON.stringify(editableWatchlist));
+      document.getElementById("wlNameInput").value = "";
+      document.getElementById("wlSymbolInput").value = "";
+      renderWatchlistModalItems();
+      showToast(`已加入 ${name}`);
+    });
+
+    document.getElementById("saveGhTokenBtn").addEventListener("click", () => {
+      const tok = document.getElementById("ghTokenInput").value.trim();
+      if (!tok) {
+        localStorage.removeItem(GH_TOKEN_KEY);
+        showToast("已清除本機同步 Token");
+      } else {
+        localStorage.setItem(GH_TOKEN_KEY, tok);
+        showToast("已儲存同步 Token 至本機");
+      }
+    });
+
+    document.getElementById("wlCopyBtn").addEventListener("click", async () => {
+      const summary = (editableWatchlist.items || [])
+        .map((it) => `- ${it.name}${it.symbol ? ` (${it.symbol})` : ""} [${it.type === "stock" ? "個股" : "總經"}]`)
+        .join("\n");
+      const text = `請幫我更新 Daily World Brief 的自選清單為：\n${summary}`;
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast("已複製清單，可直接貼給 Antigravity 更新");
+      } catch {
+        prompt("請複製以下清單：", text);
+      }
+    });
+
+    document.getElementById("wlSyncBtn").addEventListener("click", async () => {
+      editableWatchlist.updated_at = new Date().toISOString();
+      localStorage.setItem(WL_LOCAL_KEY, JSON.stringify(editableWatchlist));
+      const token = localStorage.getItem(GH_TOKEN_KEY);
+      if (!token) {
+        showToast("已存於本機；請設定下方 Token 或點「複製清單」同步回排程");
+        return;
+      }
+      try {
+        showToast("正在加密並同步至排程…");
+        const encStr = await encryptJsonPayload(editableWatchlist, currentCryptoKey);
+        const contentB64 = btoa(unescape(encodeURIComponent(encStr)));
+        const apiUrl = `https://api.github.com/repos/${GH_REPO}/contents/data/watchlist.enc`;
+        let sha = undefined;
+        const getRes = await fetch(apiUrl, {
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
+        });
+        if (getRes.ok) {
+          const meta = await getRes.json();
+          sha = meta.sha;
+        }
+        const putRes = await fetch(apiUrl, {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/vnd.github+json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message: "Sync encrypted watchlist from mobile",
+            content: contentB64,
+            ...(sha ? { sha } : {}),
+          }),
+        });
+        if (!putRes.ok) throw new Error(`GitHub HTTP ${putRes.status}`);
+        showToast("✓ 已加密同步！明早 8:00 自動生效");
+      } catch (err) {
+        console.error(err);
+        showToast(`同步失敗：${err.message}`);
+      }
     });
 
     async function loadIssue(file, targetTab = "overview") {

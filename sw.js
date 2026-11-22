@@ -1,4 +1,4 @@
-const CACHE_NAME = "world-brief-v2.2";
+const CACHE_NAME = "world-brief-v2.3";
 const SHELL_ASSETS = [
   "./",
   "./index.html",
