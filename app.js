@@ -576,19 +576,159 @@ function renderOverview(report) {
     : "";
 
   return `
+    ${renderMissingTodayBanner(report)}
     <div class="masthead">
       <div class="issue-meta">DAILY WORLD BRIEF · ${esc(report.date)}</div>
       <h1>${esc(report.title || "全球政經財金科技深度日報")}</h1>
       ${report.subtitle ? `<p class="subtitle">${esc(report.subtitle)}</p>` : ""}
     </div>
+    ${renderCatchupCard(report)}
     ${audioHtml}
     ${execHtml}
     ${marketHtml}
     ${watchlistHtml}
     ${topicsHtml}
+    ${renderWatchReview(report)}
     ${watchHtml}
   `;
 }
+
+// ---------- Daily status: missing issue, catch-up, prediction review ----------
+
+const ISSUE_EXPECTED_HOUR = 9; // the schedule runs at 08:00 Asia/Taipei
+const CATCHUP_MAX_ISSUES = 7;
+
+function taipeiNow() {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23",
+    }).formatToParts(new Date()).map((p) => [p.type, p.value])
+  );
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour) };
+}
+
+const shortDate = (d) => String(d || "").slice(5).replace("-", "/");
+const isLatestIssue = (report) => currentIndex?.issues?.[0]?.date === report.date;
+
+// Shown on the newest issue when today's issue should exist but doesn't.
+function renderMissingTodayBanner(report) {
+  if (!isLatestIssue(report)) return "";
+  const now = taipeiNow();
+  if (report.date >= now.date || now.hour < ISSUE_EXPECTED_HOUR) return "";
+  return `
+    <div class="card status-banner" role="status">
+      <div class="status-banner-title">⚠ 今日（${esc(shortDate(now.date))}）日報尚未發佈</div>
+      <p>早上 8:00 的排程可能失敗，或仍在產生中。目前顯示的是 ${esc(report.date)} 的日報。</p>
+      <button data-action="recheck">重新檢查</button>
+    </div>`;
+}
+
+// Issues published after the last one the reader opened (excluding the newest).
+// Nothing counts as missed until at least one earlier issue has been read.
+function getMissedIssues() {
+  const issues = currentIndex?.issues || [];
+  if (issues.length < 2) return [];
+  const latest = issues[0].date;
+  const map = getReadMap();
+  const readBefore = Object.keys(map).filter((d) => d < latest && (map[d] || []).length).sort();
+  if (!readBefore.length) return [];
+  const lastRead = readBefore[readBefore.length - 1];
+  return issues
+    .slice(1)
+    .filter((it) => it.date > lastRead && !(map[it.date] || []).length)
+    .slice(0, CATCHUP_MAX_ISSUES);
+}
+
+function renderCatchupCard(report) {
+  if (!isLatestIssue(report)) return "";
+  const missed = getMissedIssues();
+  if (!missed.length) return "";
+  return `
+    <div class="card catchup-card">
+      <div class="card-title">你錯過了 ${missed.length} 期</div>
+      <p class="subtitle" style="font-size:13px;margin:0 0 10px;">${missed.map((m) => esc(shortDate(m.date))).join("、")}：把這幾期的高影響新聞整理在一起，幾分鐘就能補上。</p>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-accent" data-action="catchup-open" style="flex:1;">看錯過的重點</button>
+        <button data-action="catchup-dismiss">全部標為已讀</button>
+      </div>
+    </div>`;
+}
+
+async function openCatchup() {
+  const missed = getMissedIssues();
+  const box = document.getElementById("catchupList");
+  box.innerHTML = `<p class="subtitle">正在本機解密錯過的期數…</p>`;
+  setModalOpen("catchupModal", true);
+  const loaded = await Promise.all(missed.map((m) => fetchIssueCached(m.file).then((r) => ({ m, r }), () => ({ m, r: null }))));
+  box.innerHTML = loaded.map(({ m, r }) => {
+    if (!r) return `<div class="catchup-day"><div class="catchup-date">${esc(m.date)}</div><p class="subtitle">這期目前無法載入（可能離線）。</p></div>`;
+    const highs = [];
+    for (const sec of r.sections || []) {
+      (sec.items || []).forEach((item) => { if (item.priority === "high") highs.push({ sec, item }); });
+    }
+    const rows = highs.length
+      ? highs.map(({ sec, item }) => `
+          <button class="search-hit" data-catchup-file="${esc(m.file)}" data-catchup-tab="${esc(sec.id)}">
+            <div class="search-hit-meta">${esc(SHORT_TAB_NAMES[sec.id] || sec.name)}</div>
+            <div class="search-hit-title">${esc(item.headline)}</div>
+            ${item.summary ? `<div class="search-hit-snip">${esc(String(item.summary).slice(0, 90))}${String(item.summary).length > 90 ? "…" : ""}</div>` : ""}
+          </button>`).join("")
+      : `<button class="search-hit" data-catchup-file="${esc(m.file)}" data-catchup-tab="overview">
+           <div class="search-hit-title">本期沒有高影響新聞</div>
+           ${r.subtitle ? `<div class="search-hit-snip">${esc(r.subtitle)}</div>` : ""}
+         </button>`;
+    return `<div class="catchup-day"><div class="catchup-date">${esc(m.date)}${r.subtitle && highs.length ? ` · ${esc(r.subtitle)}` : ""}</div>${rows}</div>`;
+  }).join("");
+  box.querySelectorAll("[data-catchup-file]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      setModalOpen("catchupModal", false);
+      document.getElementById("issueSelect").value = btn.dataset.catchupFile;
+      await loadIssue(btn.dataset.catchupFile, btn.dataset.catchupTab);
+    });
+  });
+}
+
+function dismissCatchup() {
+  for (const m of getMissedIssues()) markTabRead(m.date, "overview");
+  renderActiveTab();
+  showToast("已將錯過的期數標為已讀");
+}
+
+const REVIEW_STATUS = {
+  happened: ["badge-followup", "✓ 如預期"],
+  partial: ["badge-watch", "◐ 部分發生"],
+  not_happened: ["badge-high", "✗ 未發生"],
+  pending: ["badge-pending", "… 待揭曉"],
+};
+
+// How earlier "watch ahead" calls actually played out.
+function renderWatchReview(report) {
+  const rows = report.watch_review || [];
+  if (!rows.length) return "";
+  return `
+    <div class="card">
+      <div class="card-title">預測回顧：之前說要注意的事</div>
+      <div class="review-list">
+        ${rows.map((r) => {
+          const [cls, label] = REVIEW_STATUS[r.status] || REVIEW_STATUS.pending;
+          return `
+            <div class="review-row">
+              <div class="review-top"><span class="review-item">${esc(r.item)}</span><span class="badge ${cls}">${label}</span></div>
+              ${r.outcome ? `<div class="review-outcome">${esc(r.outcome)}</div>` : ""}
+              ${(r.sources || []).length ? `<div class="sources">${r.sources.map((s) => `<a class="source-link" href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener noreferrer">${esc(s.name)} ↗</a>`).join("")}</div>` : ""}
+            </div>`;
+        }).join("")}
+      </div>
+    </div>`;
+}
+
+document.getElementById("reportView").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-action]");
+  if (!btn) return;
+  if (btn.dataset.action === "recheck") document.getElementById("refreshBtn").click();
+  else if (btn.dataset.action === "catchup-open") openCatchup();
+  else if (btn.dataset.action === "catchup-dismiss") dismissCatchup();
+});
 
 function renderSection(sec, report) {
   return `
@@ -696,7 +836,7 @@ function renderActiveTab() {
     ${bodyHtml}
     ${renderPager()}
     <div class="footer-note">
-      v2.7 · AES-256-GCM 本機端對端解密 · 支援離線閱讀與左右滑動切換 · ${esc(currentReport.generated_at || currentReport.date)}
+      v2.9 · AES-256-GCM 本機端對端解密 · 支援離線閱讀與左右滑動切換 · ${esc(currentReport.generated_at || currentReport.date)}
     </div>
   `;
 
@@ -843,6 +983,15 @@ function searchEntries(meta, report) {
       hay: joinText(w.summary, (w.themes || []).map((t) => [t.title, t.detail]), w.next_week_calendar || []),
     });
   }
+  for (const r of report.watch_review || []) {
+    out.push({
+      tabId: "overview",
+      label: "預測回顧",
+      title: r.item,
+      snippet: r.outcome,
+      hay: joinText(r.item, r.outcome),
+    });
+  }
   for (const wu of report.watchlist_updates || []) {
     const r = wu.earnings_recap || {};
     out.push({
@@ -911,13 +1060,13 @@ function setModalOpen(id, open) {
   const el = document.getElementById(id);
   if (!el) return;
   el.classList.toggle("hidden", !open);
-  const anyOpen = ["searchModal", "bookmarksModal", "watchlistModal"].some(
+  const anyOpen = ["searchModal", "bookmarksModal", "watchlistModal", "catchupModal"].some(
     (m) => !document.getElementById(m).classList.contains("hidden")
   );
   document.body.style.overflow = anyOpen ? "hidden" : "";
 }
 
-["searchModal", "bookmarksModal", "watchlistModal"].forEach((id) => {
+["searchModal", "bookmarksModal", "watchlistModal", "catchupModal"].forEach((id) => {
   document.getElementById(id).addEventListener("click", (e) => {
     if (e.target.id === id) setModalOpen(id, false);
   });
@@ -968,6 +1117,7 @@ document.getElementById("bookmarksBtn").addEventListener("click", () => {
   renderBookmarksModal();
   setModalOpen("bookmarksModal", true);
 });
+document.getElementById("closeCatchupBtn").addEventListener("click", () => setModalOpen("catchupModal", false));
 document.getElementById("closeBookmarksBtn").addEventListener("click", () => {
   setModalOpen("bookmarksModal", false);
 });

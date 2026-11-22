@@ -452,6 +452,56 @@
       color: var(--accent);
       background: var(--accent-soft);
     }
+    .badge-pending {
+      color: var(--muted);
+      background: color-mix(in srgb, var(--muted) 14%, transparent);
+    }
+    .status-banner {
+      border-left: 4px solid var(--signal);
+    }
+    .status-banner-title {
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+    .status-banner p {
+      margin: 0 0 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .catchup-card {
+      border-left: 4px solid var(--accent);
+    }
+    .catchup-day {
+      margin-bottom: 14px;
+    }
+    .catchup-date {
+      font-size: 12.5px;
+      font-weight: 800;
+      color: var(--muted);
+      margin: 4px 0 6px;
+    }
+    .review-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .review-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .review-item {
+      font-weight: 700;
+    }
+    .review-top .badge {
+      flex-shrink: 0;
+    }
+    .review-outcome {
+      font-size: 13.5px;
+      color: var(--muted);
+      margin-top: 3px;
+    }
     .badge-followup {
       color: var(--up);
       background: color-mix(in srgb, var(--up) 13%, transparent);
@@ -798,6 +848,17 @@
     </div>
   </div>
 
+  <!-- Catch-up Modal -->
+  <div id="catchupModal" class="modal-backdrop hidden">
+    <div class="modal-sheet">
+      <div class="modal-head">
+        <h3>錯過的高影響重點</h3>
+        <button id="closeCatchupBtn">✕</button>
+      </div>
+      <div id="catchupList"></div>
+    </div>
+  </div>
+
   <!-- Bookmarks Modal -->
   <div id="bookmarksModal" class="modal-backdrop hidden">
     <div class="modal-sheet">
@@ -865,6 +926,6 @@
 
   <div id="toast" class="toast"></div>
 
-  <script src="./app.js?v=8"></script>
+  <script src="./app.js?v=9"></script>
 </body>
 </html>
