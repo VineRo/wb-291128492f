@@ -7,24 +7,25 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="世界日報" />
-  <meta name="theme-color" content="#0f172a" />
+  <meta name="theme-color" content="#f4f2ec" />
   <link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png?v=4" />
   <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=4" />
   <title>全球政經財金科技深度日報</title>
   <style>
     :root {
-      --bg: #f8f7f4;
+      --bg: #f4f2ec;
       --surface: #ffffff;
-      --surface-2: #f1efe9;
-      --text: #16191d;
-      --muted: #5b6472;
-      --border: #e4e1d9;
-      --accent: #b45309;
-      --accent-soft: #fef3c7;
+      --surface-2: #ece9e0;
+      --text: #1a1a1c;
+      --muted: #5b616b;
+      --border: #dedad0;
+      --accent: #102347;
+      --accent-soft: rgba(16, 35, 71, 0.08);
+      --signal: #dc2626;
       --up: #15803d;
       --down: #b91c1c;
       --flat: #475569;
-      --shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
+      --shadow: 0 2px 12px rgba(26, 26, 28, 0.04);
       --radius: 14px;
     }
     [data-theme="dark"] {
@@ -34,8 +35,9 @@
       --text: #f1f5f9;
       --muted: #94a3b8;
       --border: #24324d;
-      --accent: #f59e0b;
-      --accent-soft: rgba(245, 158, 11, 0.14);
+      --accent: #93c5fd;
+      --accent-soft: rgba(147, 197, 253, 0.14);
+      --signal: #ef4444;
       --up: #4ade80;
       --down: #f87171;
       --flat: #94a3b8;
@@ -51,15 +53,17 @@
       line-height: 1.7;
       -webkit-font-smoothing: antialiased;
     }
-    .topbar {
+    .sticky-header {
       position: sticky;
       top: 0;
-      z-index: 20;
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      background: color-mix(in srgb, var(--bg) 86%, transparent);
+      z-index: 30;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      background: color-mix(in srgb, var(--bg) 90%, transparent);
       border-bottom: 1px solid var(--border);
-      padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px;
+    }
+    .topbar {
+      padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 8px;
     }
     .topbar-inner {
       max-width: 780px;
@@ -74,14 +78,14 @@
       align-items: center;
       gap: 8px;
       font-weight: 800;
-      font-size: 15px;
-      letter-spacing: 0.04em;
+      font-size: 14px;
+      letter-spacing: 0.1em;
     }
-    .brand-dot {
-      width: 9px;
-      height: 9px;
+    .brand-mark {
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
-      background: var(--accent);
+      background: var(--signal);
     }
     .controls {
       display: flex;
@@ -95,38 +99,86 @@
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 9px;
-      padding: 6px 10px;
+      padding: 5px 9px;
       cursor: pointer;
     }
     button:active { transform: scale(0.97); }
+    .tabbar-wrap {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 0 12px;
+    }
+    .tabbar {
+      display: flex;
+      gap: 4px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .tabbar::-webkit-scrollbar { display: none; }
+    .tab-btn {
+      position: relative;
+      flex: 0 0 auto;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      padding: 10px 12px 11px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+      white-space: nowrap;
+      transition: color 0.15s;
+    }
+    .tab-btn.active {
+      color: var(--text);
+      font-weight: 800;
+    }
+    .tab-btn.active::after {
+      content: "";
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      bottom: 0;
+      height: 2.5px;
+      border-radius: 2px;
+      background: var(--signal);
+    }
+    .tab-count {
+      display: inline-block;
+      margin-left: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      opacity: 0.8;
+    }
     .container {
       max-width: 780px;
       margin: 0 auto;
-      padding: 20px 16px calc(env(safe-area-inset-bottom, 0px) + 48px);
+      padding: 18px 16px calc(env(safe-area-inset-bottom, 0px) + 40px);
     }
     .masthead {
-      margin-bottom: 20px;
-      padding-bottom: 16px;
-      border-bottom: 2px solid var(--text);
+      margin-bottom: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1.5px solid var(--text);
     }
     .issue-meta {
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
       color: var(--accent);
       margin-bottom: 6px;
     }
     h1 {
       margin: 0 0 8px;
-      font-size: 26px;
-      line-height: 1.25;
+      font-size: 24px;
+      line-height: 1.28;
       font-weight: 800;
       letter-spacing: -0.01em;
     }
     .subtitle {
       margin: 0;
-      font-size: 15px;
+      font-size: 14.5px;
       color: var(--muted);
     }
     .card {
@@ -134,16 +186,26 @@
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 18px;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
       box-shadow: var(--shadow);
     }
     .card-title {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 800;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
       color: var(--accent);
       margin: 0 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .card-title::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--signal);
     }
     .exec-list {
       margin: 0;
@@ -156,7 +218,7 @@
     .exec-list li:last-child { margin-bottom: 0; }
     .market-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
       gap: 10px;
     }
     .ticker {
@@ -186,47 +248,53 @@
       color: var(--muted);
       margin-top: 2px;
     }
-    .nav-pills {
-      display: flex;
-      gap: 8px;
-      overflow-x: auto;
-      padding: 4px 0 14px;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
-    }
-    .nav-pills::-webkit-scrollbar { display: none; }
-    .pill {
-      white-space: nowrap;
-      text-decoration: none;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text);
-      background: var(--surface);
-      border: 1px solid var(--border);
-      padding: 6px 12px;
-      border-radius: 999px;
-    }
-    .section-header {
-      display: flex;
-      align-items: center;
+    .topic-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
       gap: 10px;
-      margin: 28px 0 12px;
-      scroll-margin-top: 72px;
     }
-    .section-header h2 {
+    .topic-jump {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      text-align: left;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      padding: 12px 14px;
+      width: 100%;
+    }
+    .topic-jump-name {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--text);
+    }
+    .topic-jump-meta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .section-banner {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin: 4px 0 14px;
+      padding-bottom: 10px;
+      border-bottom: 1.5px solid var(--text);
+    }
+    .section-banner h2 {
       margin: 0;
-      font-size: 19px;
+      font-size: 21px;
       font-weight: 800;
     }
-    .section-bar {
-      width: 4px;
-      height: 20px;
-      border-radius: 4px;
-      background: var(--accent);
+    .section-banner span {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 600;
     }
     .news-item h3 {
       margin: 0 0 10px;
-      font-size: 17px;
+      font-size: 17.5px;
       line-height: 1.4;
       font-weight: 800;
     }
@@ -237,7 +305,7 @@
     .sub-block {
       background: var(--surface-2);
       border-radius: 10px;
-      padding: 10px 12px;
+      padding: 11px 13px;
       margin-bottom: 10px;
       font-size: 14px;
     }
@@ -274,6 +342,32 @@
       padding: 4px 10px;
       border-radius: 999px;
     }
+    .pager-nav {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .pager-btn {
+      flex: 1;
+      padding: 11px 14px;
+      font-weight: 700;
+      font-size: 13.5px;
+      border-radius: 11px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .pager-btn.next {
+      text-align: right;
+    }
+    .pager-btn.prev {
+      text-align: left;
+    }
+    .pager-btn.invisible {
+      visibility: hidden;
+      pointer-events: none;
+    }
     .locked-box {
       max-width: 440px;
       margin: 14vh auto 0;
@@ -307,7 +401,7 @@
       bottom: 24px;
       left: 50%;
       transform: translateX(-50%);
-      background: #111827;
+      background: #1a1a1c;
       color: #f8fafc;
       padding: 10px 16px;
       border-radius: 999px;
@@ -320,31 +414,36 @@
     }
     .toast.show { opacity: 1; }
     .footer-note {
-      margin-top: 28px;
+      margin-top: 22px;
       text-align: center;
-      font-size: 12px;
+      font-size: 11.5px;
       color: var(--muted);
     }
     .hidden { display: none !important; }
   </style>
 </head>
 <body>
-  <header class="topbar hidden" id="topbar">
-    <div class="topbar-inner">
-      <div class="brand">
-        <span class="brand-dot"></span>
-        <span>WORLD BRIEF</span>
+  <div class="sticky-header hidden" id="stickyHeader">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <span class="brand-mark"></span>
+          <span>WORLD BRIEF</span>
+        </div>
+        <div class="controls">
+          <select id="issueSelect" aria-label="選擇期數"></select>
+          <button id="refreshBtn" title="重新整理">↻</button>
+          <button id="copyUrlBtn" title="複製專屬加密網址">🔗</button>
+          <button id="themeBtn" title="切換深淺色">◐</button>
+        </div>
       </div>
-      <div class="controls">
-        <select id="issueSelect" aria-label="選擇期數"></select>
-        <button id="refreshBtn" title="重新整理">↻</button>
-        <button id="copyUrlBtn" title="複製專屬加密網址">🔗</button>
-        <button id="themeBtn" title="切換深淺色">◐</button>
-      </div>
+    </header>
+    <div class="tabbar-wrap">
+      <nav class="tabbar" id="tabbar" role="tablist" aria-label="主題分頁"></nav>
     </div>
-  </header>
+  </div>
 
-  <main class="container">
+  <main class="container" id="swipeArea">
     <section id="lockedView" class="card locked-box hidden">
       <div class="locked-icon">🔒</div>
       <h1 style="font-size:20px;">私人加密全球日報</h1>
@@ -366,10 +465,18 @@
     const STORAGE_KEY = "wb_secret_key_v1";
     const THEME_KEY = "wb_theme_v1";
 
+    const SHORT_TAB_NAMES = {
+      economy: "國際經濟",
+      markets: "金融市場",
+      politics: "國際政治",
+      finance: "財金企業",
+      tech: "科技 AI",
+    };
+
     function applyTheme(theme) {
       document.documentElement.setAttribute("data-theme", theme);
       const meta = document.querySelector('meta[name="theme-color"]');
-      if (meta) meta.setAttribute("content", theme === "dark" ? "#0b1120" : "#f8f7f4");
+      if (meta) meta.setAttribute("content", theme === "dark" ? "#0b1120" : "#f4f2ec");
     }
 
     const savedTheme = localStorage.getItem(THEME_KEY) ||
@@ -441,12 +548,66 @@
         .replace(/"/g, "&quot;");
     }
 
-    function renderReport(report) {
-      const view = document.getElementById("reportView");
-      const navPills = (report.sections || [])
-        .map((s) => `<a class="pill" href="#sec-${esc(s.id)}">${esc(s.name)}</a>`)
-        .join("");
+    let currentKeyStr = "";
+    let currentCryptoKey = null;
+    let currentIndex = null;
+    let currentReport = null;
+    let currentTabs = [];
+    let activeTabId = "overview";
 
+    function buildTabs(report) {
+      const tabs = [{ id: "overview", label: "總覽", count: null }];
+      for (const sec of (report.sections || [])) {
+        tabs.push({
+          id: sec.id,
+          label: SHORT_TAB_NAMES[sec.id] || sec.name,
+          fullName: sec.name,
+          count: (sec.items || []).length,
+        });
+      }
+      return tabs;
+    }
+
+    function renderTabBar() {
+      const tabbar = document.getElementById("tabbar");
+      tabbar.innerHTML = currentTabs.map((t) => `
+        <button
+          class="tab-btn ${t.id === activeTabId ? "active" : ""}"
+          role="tab"
+          aria-selected="${t.id === activeTabId}"
+          data-tab="${esc(t.id)}"
+        >
+          ${esc(t.label)}${t.count !== null ? `<span class="tab-count">${t.count}</span>` : ""}
+        </button>
+      `).join("");
+
+      tabbar.querySelectorAll(".tab-btn").forEach((btn) => {
+        btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+      });
+
+      const activeBtn = tabbar.querySelector(".tab-btn.active");
+      if (activeBtn) {
+        activeBtn.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+      }
+    }
+
+    function renderPager() {
+      const idx = currentTabs.findIndex((t) => t.id === activeTabId);
+      const prev = idx > 0 ? currentTabs[idx - 1] : null;
+      const next = idx < currentTabs.length - 1 ? currentTabs[idx + 1] : null;
+      return `
+        <div class="pager-nav">
+          <button class="pager-btn prev ${prev ? "" : "invisible"}" data-jump="${prev ? esc(prev.id) : ""}">
+            ← ${prev ? esc(prev.label) : ""}
+          </button>
+          <button class="pager-btn next ${next ? "" : "invisible"}" data-jump="${next ? esc(next.id) : ""}">
+            ${next ? esc(next.label) : ""} →
+          </button>
+        </div>
+      `;
+    }
+
+    function renderOverview(report) {
       const execHtml = (report.executive_summary || []).length
         ? `<div class="card">
              <div class="card-title">今日核心摘要</div>
@@ -470,10 +631,45 @@
            </div>`
         : "";
 
-      const sectionsHtml = (report.sections || []).map((sec) => `
-        <div class="section-header" id="sec-${esc(sec.id)}">
-          <span class="section-bar"></span>
+      const topicsHtml = (report.sections || []).length
+        ? `<div class="card">
+             <div class="card-title">主題快速切換</div>
+             <div class="topic-grid">
+               ${report.sections.map((s) => `
+                 <button class="topic-jump" data-jump="${esc(s.id)}">
+                   <span class="topic-jump-name">${esc(SHORT_TAB_NAMES[s.id] || s.name)}</span>
+                   <span class="topic-jump-meta">${(s.items || []).length} 則深度分析 →</span>
+                 </button>
+               `).join("")}
+             </div>
+           </div>`
+        : "";
+
+      const watchHtml = (report.watch_ahead || []).length
+        ? `<div class="card">
+             <div class="card-title">未來 24–72 小時關注焦點</div>
+             <ul class="exec-list">${report.watch_ahead.map((w) => `<li>${esc(w)}</li>`).join("")}</ul>
+           </div>`
+        : "";
+
+      return `
+        <div class="masthead">
+          <div class="issue-meta">DAILY WORLD BRIEF · ${esc(report.date)}</div>
+          <h1>${esc(report.title || "全球政經財金科技深度日報")}</h1>
+          ${report.subtitle ? `<p class="subtitle">${esc(report.subtitle)}</p>` : ""}
+        </div>
+        ${execHtml}
+        ${marketHtml}
+        ${topicsHtml}
+        ${watchHtml}
+      `;
+    }
+
+    function renderSection(sec, report) {
+      return `
+        <div class="section-banner">
           <h2>${esc(sec.name)}</h2>
+          <span>${esc(report.date)} · ${(sec.items || []).length} 則分析</span>
         </div>
         ${(sec.items || []).map((item) => `
           <div class="card news-item">
@@ -499,41 +695,70 @@
             </div>
           </div>
         `).join("")}
-      `).join("");
-
-      const watchHtml = (report.watch_ahead || []).length
-        ? `<div class="card">
-             <div class="card-title">未來 24–72 小時關注焦點</div>
-             <ul class="exec-list">${report.watch_ahead.map((w) => `<li>${esc(w)}</li>`).join("")}</ul>
-           </div>`
-        : "";
-
-      view.innerHTML = `
-        <div class="masthead">
-          <div class="issue-meta">DAILY WORLD BRIEF · ${esc(report.date)}</div>
-          <h1>${esc(report.title || "全球政經財金科技深度日報")}</h1>
-          ${report.subtitle ? `<p class="subtitle">${esc(report.subtitle)}</p>` : ""}
-        </div>
-        <nav class="nav-pills">${navPills}</nav>
-        ${execHtml}
-        ${marketHtml}
-        ${sectionsHtml}
-        ${watchHtml}
-        <div class="footer-note">
-          本頁資料於本機以 AES-256-GCM 即時解密 · 產出時間 ${esc(report.generated_at || report.date)}
-        </div>
       `;
     }
 
-    let currentKeyStr = "";
-    let currentCryptoKey = null;
-    let currentIndex = null;
+    function renderActiveTab() {
+      if (!currentReport) return;
+      renderTabBar();
+      const view = document.getElementById("reportView");
+      let bodyHtml = "";
+      if (activeTabId === "overview") {
+        bodyHtml = renderOverview(currentReport);
+      } else {
+        const sec = (currentReport.sections || []).find((s) => s.id === activeTabId);
+        bodyHtml = sec ? renderSection(sec, currentReport) : renderOverview(currentReport);
+      }
+
+      view.innerHTML = `
+        ${bodyHtml}
+        ${renderPager()}
+        <div class="footer-note">
+          AES-256-GCM 本機端對端解密 · 左右滑動可切換主題 · ${esc(currentReport.generated_at || currentReport.date)}
+        </div>
+      `;
+
+      view.querySelectorAll("[data-jump]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          if (btn.dataset.jump) switchTab(btn.dataset.jump);
+        });
+      });
+    }
+
+    function switchTab(tabId) {
+      if (!currentTabs.some((t) => t.id === tabId)) tabId = "overview";
+      activeTabId = tabId;
+      renderActiveTab();
+      window.scrollTo({ top: 0, behavior: "instant" });
+    }
+
+    // Touch swipe left/right between tabs on mobile
+    let touchStartX = 0;
+    let touchStartY = 0;
+    const swipeArea = document.getElementById("swipeArea");
+    swipeArea.addEventListener("touchstart", (e) => {
+      if (e.touches.length !== 1) return;
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+    swipeArea.addEventListener("touchend", (e) => {
+      if (!currentReport || e.changedTouches.length !== 1) return;
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      const dy = e.changedTouches[0].clientY - touchStartY;
+      if (Math.abs(dx) > 65 && Math.abs(dx) > Math.abs(dy) * 1.6) {
+        const idx = currentTabs.findIndex((t) => t.id === activeTabId);
+        if (dx < 0 && idx < currentTabs.length - 1) switchTab(currentTabs[idx + 1].id);
+        if (dx > 0 && idx > 0) switchTab(currentTabs[idx - 1].id);
+      }
+    }, { passive: true });
 
     async function loadIssue(file) {
       document.getElementById("loadingView").classList.remove("hidden");
       document.getElementById("reportView").classList.add("hidden");
-      const report = await fetchEncryptedJson(`./data/${file}`, currentCryptoKey);
-      renderReport(report);
+      currentReport = await fetchEncryptedJson(`./data/${file}`, currentCryptoKey);
+      currentTabs = buildTabs(currentReport);
+      activeTabId = "overview";
+      renderActiveTab();
       document.getElementById("loadingView").classList.add("hidden");
       document.getElementById("reportView").classList.remove("hidden");
     }
@@ -542,7 +767,7 @@
       const lockedView = document.getElementById("lockedView");
       const loadingView = document.getElementById("loadingView");
       const reportView = document.getElementById("reportView");
-      const topbar = document.getElementById("topbar");
+      const stickyHeader = document.getElementById("stickyHeader");
 
       if (!rawKey) {
         loadingView.classList.add("hidden");
@@ -567,7 +792,7 @@
           .map((it) => `<option value="${esc(it.file)}">${esc(it.date)}</option>`)
           .join("");
 
-        topbar.classList.remove("hidden");
+        stickyHeader.classList.remove("hidden");
         if (currentIndex.issues && currentIndex.issues.length > 0) {
           await loadIssue(currentIndex.issues[0].file);
         } else {
@@ -579,7 +804,7 @@
         console.error(err);
         loadingView.classList.add("hidden");
         reportView.classList.add("hidden");
-        topbar.classList.add("hidden");
+        stickyHeader.classList.add("hidden");
         document.getElementById("lockedMsg").textContent = "解密失敗：金鑰不正確或連結不完整。請確認您的專屬加密網址。";
         lockedView.classList.remove("hidden");
       }
