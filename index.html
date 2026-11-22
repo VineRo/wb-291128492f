@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="robots" content="noindex, nofollow, noarchive" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="世界日報" />
+  <meta name="theme-color" content="#0f172a" />
+  <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+  <link rel="apple-touch-icon" href="./icon.svg" />
+  <title>全球政經財金科技深度日報</title>
+  <style>
+    :root {
+      --bg: #f8f7f4;
+      --surface: #ffffff;
+      --surface-2: #f1efe9;
+      --text: #16191d;
+      --muted: #5b6472;
+      --border: #e4e1d9;
+      --accent: #b45309;
+      --accent-soft: #fef3c7;
+      --up: #15803d;
+      --down: #b91c1c;
+      --flat: #475569;
+      --shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
+      --radius: 14px;
+    }
+    [data-theme="dark"] {
+      --bg: #0b1120;
+      --surface: #131c31;
+      --surface-2: #1a2540;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --border: #24324d;
+      --accent: #f59e0b;
+      --accent-soft: rgba(245, 158, 11, 0.14);
+      --up: #4ade80;
+      --down: #f87171;
+      --flat: #94a3b8;
+      --shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang TC", "Noto Sans TC", "Helvetica Neue", sans-serif;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      background: color-mix(in srgb, var(--bg) 86%, transparent);
+      border-bottom: 1px solid var(--border);
+      padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px;
+    }
+    .topbar-inner {
+      max-width: 780px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 800;
+      font-size: 15px;
+      letter-spacing: 0.04em;
+    }
+    .brand-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    select, button {
+      font: inherit;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+    button:active { transform: scale(0.97); }
+    .container {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 20px 16px calc(env(safe-area-inset-bottom, 0px) + 48px);
+    }
+    .masthead {
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid var(--text);
+    }
+    .issue-meta {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 26px;
+      line-height: 1.25;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+    .subtitle {
+      margin: 0;
+      font-size: 15px;
+      color: var(--muted);
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow);
+    }
+    .card-title {
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin: 0 0 12px;
+    }
+    .exec-list {
+      margin: 0;
+      padding-left: 18px;
+    }
+    .exec-list li {
+      margin-bottom: 8px;
+      font-size: 15px;
+    }
+    .exec-list li:last-child { margin-bottom: 0; }
+    .market-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 10px;
+    }
+    .ticker {
+      background: var(--surface-2);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .ticker-label {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .ticker-val {
+      font-size: 17px;
+      font-weight: 800;
+      margin: 2px 0;
+    }
+    .ticker-chg {
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .ticker-chg.up { color: var(--up); }
+    .ticker-chg.down { color: var(--down); }
+    .ticker-chg.flat { color: var(--flat); }
+    .ticker-asof {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .nav-pills {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 4px 0 14px;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .nav-pills::-webkit-scrollbar { display: none; }
+    .pill {
+      white-space: nowrap;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 999px;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 28px 0 12px;
+      scroll-margin-top: 72px;
+    }
+    .section-header h2 {
+      margin: 0;
+      font-size: 19px;
+      font-weight: 800;
+    }
+    .section-bar {
+      width: 4px;
+      height: 20px;
+      border-radius: 4px;
+      background: var(--accent);
+    }
+    .news-item h3 {
+      margin: 0 0 10px;
+      font-size: 17px;
+      line-height: 1.4;
+      font-weight: 800;
+    }
+    .news-summary {
+      margin: 0 0 12px;
+      font-size: 15px;
+    }
+    .sub-block {
+      background: var(--surface-2);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    .sub-block-label {
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+    .sub-block ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+    .verify-badge {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 8px 0;
+    }
+    .sources {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .source-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      background: var(--accent-soft);
+      text-decoration: none;
+      padding: 4px 10px;
+      border-radius: 999px;
+    }
+    .locked-box {
+      max-width: 440px;
+      margin: 14vh auto 0;
+      text-align: center;
+    }
+    .locked-icon {
+      font-size: 40px;
+      margin-bottom: 8px;
+    }
+    .key-input {
+      width: 100%;
+      padding: 11px 12px;
+      font-size: 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text);
+      margin: 12px 0;
+    }
+    .btn-primary {
+      width: 100%;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      font-weight: 700;
+      padding: 11px 16px;
+      border-radius: 10px;
+    }
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #111827;
+      color: #f8fafc;
+      padding: 10px 16px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+      z-index: 50;
+    }
+    .toast.show { opacity: 1; }
+    .footer-note {
+      margin-top: 28px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <header class="topbar hidden" id="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-dot"></span>
+        <span>WORLD BRIEF</span>
+      </div>
+      <div class="controls">
+        <select id="issueSelect" aria-label="選擇期數"></select>
+        <button id="refreshBtn" title="重新整理">↻</button>
+        <button id="copyUrlBtn" title="複製專屬加密網址">🔗</button>
+        <button id="themeBtn" title="切換深淺色">◐</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section id="lockedView" class="card locked-box hidden">
+      <div class="locked-icon">🔒</div>
+      <h1 style="font-size:20px;">私人加密全球日報</h1>
+      <p class="subtitle" id="lockedMsg">此頁面採用 AES-256-GCM 端對端加密。請使用您的專屬加密網址開啟，或在下方貼上解密金鑰。</p>
+      <input type="password" id="manualKeyInput" class="key-input" placeholder="貼上解密金鑰或完整加密網址…" autocomplete="off" />
+      <button id="unlockBtn" class="btn-primary">解鎖閱讀</button>
+    </section>
+
+    <section id="loadingView" class="card locked-box">
+      <p class="subtitle">正在本機解密今日全球深度日報…</p>
+    </section>
+
+    <article id="reportView" class="hidden"></article>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const STORAGE_KEY = "wb_secret_key_v1";
+    const THEME_KEY = "wb_theme_v1";
+
+    function applyTheme(theme) {
+      document.documentElement.setAttribute("data-theme", theme);
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute("content", theme === "dark" ? "#0b1120" : "#f8f7f4");
+    }
+
+    const savedTheme = localStorage.getItem(THEME_KEY) ||
+      (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    applyTheme(savedTheme);
+
+    document.getElementById("themeBtn").addEventListener("click", () => {
+      const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+      localStorage.setItem(THEME_KEY, next);
+      applyTheme(next);
+    });
+
+    function showToast(msg) {
+      const el = document.getElementById("toast");
+      el.textContent = msg;
+      el.classList.add("show");
+      setTimeout(() => el.classList.remove("show"), 2200);
+    }
+
+    function b64urlToBytes(str) {
+      let s = str.trim().replace(/-/g, "+").replace(/_/g, "/");
+      while (s.length % 4) s += "=";
+      const bin = atob(s);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return bytes;
+    }
+
+    function b64ToBytes(str) {
+      const bin = atob(str);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return bytes;
+    }
+
+    function extractKeyFromInput(raw) {
+      const trimmed = (raw || "").trim();
+      if (!trimmed) return "";
+      const hashIdx = trimmed.indexOf("#");
+      if (hashIdx !== -1) return trimmed.slice(hashIdx + 1).trim();
+      return trimmed;
+    }
+
+    async function importAesKey(keyB64Url) {
+      const rawBytes = b64urlToBytes(keyB64Url);
+      if (rawBytes.length !== 32) throw new Error("金鑰長度不正確");
+      return crypto.subtle.importKey("raw", rawBytes, { name: "AES-GCM" }, false, ["decrypt"]);
+    }
+
+    async function decryptPayload(payload, cryptoKey) {
+      const iv = b64ToBytes(payload.iv);
+      const ct = b64ToBytes(payload.ct);
+      const plainBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, cryptoKey, ct);
+      return JSON.parse(new TextDecoder().decode(plainBuf));
+    }
+
+    async function fetchEncryptedJson(relPath, cryptoKey) {
+      const res = await fetch(`${relPath}?t=${Date.now()}`, { cache: "no-store" });
+      if (!res.ok) throw new Error(`無法載入資料 (${res.status})`);
+      const payload = await res.json();
+      return decryptPayload(payload, cryptoKey);
+    }
+
+    function esc(s) {
+      return String(s ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function renderReport(report) {
+      const view = document.getElementById("reportView");
+      const navPills = (report.sections || [])
+        .map((s) => `<a class="pill" href="#sec-${esc(s.id)}">${esc(s.name)}</a>`)
+        .join("");
+
+      const execHtml = (report.executive_summary || []).length
+        ? `<div class="card">
+             <div class="card-title">今日核心摘要</div>
+             <ul class="exec-list">${report.executive_summary.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+           </div>`
+        : "";
+
+      const marketHtml = (report.market_snapshot || []).length
+        ? `<div class="card">
+             <div class="card-title">關鍵市場數據</div>
+             <div class="market-grid">
+               ${report.market_snapshot.map((m) => `
+                 <div class="ticker">
+                   <div class="ticker-label">${esc(m.label)}</div>
+                   <div class="ticker-val">${esc(m.value)}</div>
+                   <div class="ticker-chg ${esc(m.direction || "flat")}">${esc(m.change || "")}</div>
+                   ${m.as_of ? `<div class="ticker-asof">${esc(m.as_of)}</div>` : ""}
+                 </div>
+               `).join("")}
+             </div>
+           </div>`
+        : "";
+
+      const sectionsHtml = (report.sections || []).map((sec) => `
+        <div class="section-header" id="sec-${esc(sec.id)}">
+          <span class="section-bar"></span>
+          <h2>${esc(sec.name)}</h2>
+        </div>
+        ${(sec.items || []).map((item) => `
+          <div class="card news-item">
+            <h3>${esc(item.headline)}</h3>
+            <p class="news-summary">${esc(item.summary)}</p>
+            ${(item.key_data || []).length ? `
+              <div class="sub-block">
+                <div class="sub-block-label">關鍵數據與事實</div>
+                <ul>${item.key_data.map((d) => `<li>${esc(d)}</li>`).join("")}</ul>
+              </div>` : ""}
+            ${item.impact ? `
+              <div class="sub-block">
+                <div class="sub-block-label">市場與亞太／台灣影響</div>
+                <div>${esc(item.impact)}</div>
+              </div>` : ""}
+            ${item.verification_note ? `<div class="verify-badge">✓ 查核說明：${esc(item.verification_note)}</div>` : ""}
+            <div class="sources">
+              ${(item.sources || []).map((src) => `
+                <a class="source-link" href="${esc(src.url)}" target="_blank" rel="noopener noreferrer">
+                  ${esc(src.name)}${src.date ? ` · ${esc(src.date)}` : ""} ↗
+                </a>
+              `).join("")}
+            </div>
+          </div>
+        `).join("")}
+      `).join("");
+
+      const watchHtml = (report.watch_ahead || []).length
+        ? `<div class="card">
+             <div class="card-title">未來 24–72 小時關注焦點</div>
+             <ul class="exec-list">${report.watch_ahead.map((w) => `<li>${esc(w)}</li>`).join("")}</ul>
+           </div>`
+        : "";
+
+      view.innerHTML = `
+        <div class="masthead">
+          <div class="issue-meta">DAILY WORLD BRIEF · ${esc(report.date)}</div>
+          <h1>${esc(report.title || "全球政經財金科技深度日報")}</h1>
+          ${report.subtitle ? `<p class="subtitle">${esc(report.subtitle)}</p>` : ""}
+        </div>
+        <nav class="nav-pills">${navPills}</nav>
+        ${execHtml}
+        ${marketHtml}
+        ${sectionsHtml}
+        ${watchHtml}
+        <div class="footer-note">
+          本頁資料於本機以 AES-256-GCM 即時解密 · 產出時間 ${esc(report.generated_at || report.date)}
+        </div>
+      `;
+    }
+
+    let currentKeyStr = "";
+    let currentCryptoKey = null;
+    let currentIndex = null;
+
+    async function loadIssue(file) {
+      document.getElementById("loadingView").classList.remove("hidden");
+      document.getElementById("reportView").classList.add("hidden");
+      const report = await fetchEncryptedJson(`./data/${file}`, currentCryptoKey);
+      renderReport(report);
+      document.getElementById("loadingView").classList.add("hidden");
+      document.getElementById("reportView").classList.remove("hidden");
+    }
+
+    async function boot(rawKey) {
+      const lockedView = document.getElementById("lockedView");
+      const loadingView = document.getElementById("loadingView");
+      const reportView = document.getElementById("reportView");
+      const topbar = document.getElementById("topbar");
+
+      if (!rawKey) {
+        loadingView.classList.add("hidden");
+        lockedView.classList.remove("hidden");
+        return;
+      }
+
+      try {
+        lockedView.classList.add("hidden");
+        loadingView.classList.remove("hidden");
+
+        currentCryptoKey = await importAesKey(rawKey);
+        currentIndex = await fetchEncryptedJson("./data/index.enc", currentCryptoKey);
+        currentKeyStr = rawKey;
+        localStorage.setItem(STORAGE_KEY, rawKey);
+        if (window.location.hash !== `#${rawKey}`) {
+          history.replaceState(null, "", `#${rawKey}`);
+        }
+
+        const select = document.getElementById("issueSelect");
+        select.innerHTML = (currentIndex.issues || [])
+          .map((it) => `<option value="${esc(it.file)}">${esc(it.date)}</option>`)
+          .join("");
+
+        topbar.classList.remove("hidden");
+        if (currentIndex.issues && currentIndex.issues.length > 0) {
+          await loadIssue(currentIndex.issues[0].file);
+        } else {
+          loadingView.classList.add("hidden");
+          reportView.innerHTML = `<div class="card"><p>目前尚無已發佈的日報。</p></div>`;
+          reportView.classList.remove("hidden");
+        }
+      } catch (err) {
+        console.error(err);
+        loadingView.classList.add("hidden");
+        reportView.classList.add("hidden");
+        topbar.classList.add("hidden");
+        document.getElementById("lockedMsg").textContent = "解密失敗：金鑰不正確或連結不完整。請確認您的專屬加密網址。";
+        lockedView.classList.remove("hidden");
+      }
+    }
+
+    document.getElementById("issueSelect").addEventListener("change", (e) => {
+      if (e.target.value) loadIssue(e.target.value);
+    });
+
+    document.getElementById("refreshBtn").addEventListener("click", () => {
+      boot(currentKeyStr);
+      showToast("已重新載入最新期數");
+    });
+
+    document.getElementById("copyUrlBtn").addEventListener("click", async () => {
+      const url = `${window.location.origin}${window.location.pathname}#${currentKeyStr}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        showToast("已複製專屬加密網址");
+      } catch {
+        prompt("請複製您的專屬加密網址：", url);
+      }
+    });
+
+    document.getElementById("unlockBtn").addEventListener("click", () => {
+      const k = extractKeyFromInput(document.getElementById("manualKeyInput").value);
+      boot(k);
+    });
+
+    const hashKey = extractKeyFromInput(window.location.hash);
+    const initialKey = hashKey || localStorage.getItem(STORAGE_KEY) || "";
+    boot(initialKey);
+  </script>
+</body>
+</html>
