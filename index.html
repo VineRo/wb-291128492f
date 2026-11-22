@@ -1181,7 +1181,7 @@
         ${bodyHtml}
         ${renderPager()}
         <div class="footer-note">
-          AES-256-GCM 本機端對端解密 · 支援離線閱讀與左右滑動切換 · ${esc(currentReport.generated_at || currentReport.date)}
+          v2.1 · AES-256-GCM 本機端對端解密 · 支援離線閱讀與左右滑動切換 · ${esc(currentReport.generated_at || currentReport.date)}
         </div>
       `;
 
@@ -1416,10 +1416,22 @@
       if (e.target.value) loadIssue(e.target.value);
     });
 
-    document.getElementById("refreshBtn").addEventListener("click", () => {
+    document.getElementById("refreshBtn").addEventListener("click", async () => {
       decryptedCache.clear();
-      boot(currentKeyStr);
-      showToast("已重新載入最新期數");
+      if ("caches" in window) {
+        try {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((k) => caches.delete(k)));
+        } catch {}
+      }
+      if ("serviceWorker" in navigator) {
+        try {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map((r) => r.update()));
+        } catch {}
+      }
+      showToast("正在重新載入最新版本…");
+      window.location.reload();
     });
 
     document.getElementById("unlockBtn").addEventListener("click", () => {
