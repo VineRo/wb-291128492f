@@ -427,7 +427,7 @@
     .wl-input {
       width: 100%;
       padding: 9px 10px;
-      font-size: 13.5px;
+      font-size: 16px;
       border-radius: 9px;
       border: 1px solid var(--border);
       background: var(--surface);
@@ -601,46 +601,63 @@
     .modal-backdrop {
       position: fixed;
       inset: 0;
+      width: 100%;
+      height: 100dvh;
       background: rgba(11, 17, 32, 0.55);
       backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
       z-index: 60;
       display: flex;
-      align-items: flex-end;
+      align-items: flex-start;
       justify-content: center;
-    }
-    @media (min-width: 640px) {
-      .modal-backdrop { align-items: center; }
+      padding: 0;
+      overscroll-behavior: contain;
     }
     .modal-sheet {
       width: 100%;
-      max-width: 620px;
-      max-height: 82vh;
-      overflow-y: auto;
+      height: 100dvh;
+      max-height: 100dvh;
+      display: flex;
+      flex-direction: column;
       background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 18px 18px 0 0;
-      padding: 18px 16px calc(env(safe-area-inset-bottom, 0px) + 24px);
-      box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.25);
+      padding: calc(env(safe-area-inset-top, 0px) + 14px) 16px calc(env(safe-area-inset-bottom, 0px) + 18px);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
     }
     @media (min-width: 640px) {
-      .modal-sheet { border-radius: 18px; }
+      .modal-backdrop {
+        align-items: center;
+        padding: 24px;
+      }
+      .modal-sheet {
+        height: auto;
+        max-width: 620px;
+        max-height: 82dvh;
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 18px 18px 22px;
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25);
+      }
     }
     .modal-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
       margin-bottom: 12px;
+      flex-shrink: 0;
     }
     .modal-head h3 { margin: 0; font-size: 17px; font-weight: 800; }
     .search-input {
       width: 100%;
-      padding: 10px 12px;
-      font-size: 14.5px;
+      padding: 11px 12px;
+      font-size: 16px;
       border-radius: 10px;
       border: 1px solid var(--border);
       background: var(--surface);
       color: var(--text);
       margin-bottom: 12px;
+      flex-shrink: 0;
     }
     .search-hit {
       display: block;
@@ -677,7 +694,7 @@
     .key-input {
       width: 100%;
       padding: 11px 12px;
-      font-size: 14px;
+      font-size: 16px;
       border-radius: 10px;
       border: 1px solid var(--border);
       background: var(--surface-2);
@@ -1447,7 +1464,7 @@
         ${bodyHtml}
         ${renderPager()}
         <div class="footer-note">
-          v2.3 · AES-256-GCM 本機端對端解密 · 支援離線閱讀與左右滑動切換 · ${esc(currentReport.generated_at || currentReport.date)}
+          v2.4 · AES-256-GCM 本機端對端解密 · 支援離線閱讀與左右滑動切換 · ${esc(currentReport.generated_at || currentReport.date)}
         </div>
       `;
 
@@ -1576,21 +1593,36 @@
       box.querySelectorAll(".search-hit").forEach((btn) => {
         btn.addEventListener("click", async () => {
           const hit = hits[Number(btn.dataset.hitIdx)];
-          document.getElementById("searchModal").classList.add("hidden");
+          setModalOpen("searchModal", false);
           document.getElementById("issueSelect").value = hit.file;
           await loadIssue(hit.file, hit.secId);
         });
       });
     }
 
+    function setModalOpen(id, open) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.toggle("hidden", !open);
+      const anyOpen = ["searchModal", "bookmarksModal", "watchlistModal"].some(
+        (m) => !document.getElementById(m).classList.contains("hidden")
+      );
+      document.body.style.overflow = anyOpen ? "hidden" : "";
+    }
+
+    ["searchModal", "bookmarksModal", "watchlistModal"].forEach((id) => {
+      document.getElementById(id).addEventListener("click", (e) => {
+        if (e.target.id === id) setModalOpen(id, false);
+      });
+    });
+
     document.getElementById("searchBtn").addEventListener("click", () => {
-      document.getElementById("searchModal").classList.remove("hidden");
+      setModalOpen("searchModal", true);
       const inp = document.getElementById("searchInput");
-      inp.focus();
       runSearch(inp.value);
     });
     document.getElementById("closeSearchBtn").addEventListener("click", () => {
-      document.getElementById("searchModal").classList.add("hidden");
+      setModalOpen("searchModal", false);
     });
     document.getElementById("searchInput").addEventListener("input", (e) => runSearch(e.target.value));
 
@@ -1627,10 +1659,10 @@
     }
     document.getElementById("bookmarksBtn").addEventListener("click", () => {
       renderBookmarksModal();
-      document.getElementById("bookmarksModal").classList.remove("hidden");
+      setModalOpen("bookmarksModal", true);
     });
     document.getElementById("closeBookmarksBtn").addEventListener("click", () => {
-      document.getElementById("bookmarksModal").classList.add("hidden");
+      setModalOpen("bookmarksModal", false);
     });
 
     // Watchlist Manager Modal (Local edit + optional encrypted GitHub Sync)
@@ -1666,7 +1698,7 @@
     }
 
     async function openWatchlistModal() {
-      document.getElementById("watchlistModal").classList.remove("hidden");
+      setModalOpen("watchlistModal", true);
       document.getElementById("ghTokenInput").value = localStorage.getItem(GH_TOKEN_KEY) || "";
       try {
         const remote = await fetchEncryptedJson("./data/watchlist.enc", currentCryptoKey);
@@ -1692,7 +1724,7 @@
     }
 
     document.getElementById("closeWatchlistBtn").addEventListener("click", () => {
-      document.getElementById("watchlistModal").classList.add("hidden");
+      setModalOpen("watchlistModal", false);
     });
 
     document.getElementById("wlAddBtn").addEventListener("click", () => {
