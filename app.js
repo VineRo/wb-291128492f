@@ -860,20 +860,26 @@ function renderActiveTab() {
   renderTabBar();
   const view = document.getElementById("reportView");
   let bodyHtml = "";
-  if (activeTabId === "overview") {
-    bodyHtml = renderOverview(currentReport);
-  } else if (activeTabId === "weekly") {
-    bodyHtml = renderWeeklyRecap(currentReport);
-  } else {
-    const sec = (currentReport.sections || []).find((s) => s.id === activeTabId);
-    bodyHtml = sec ? renderSection(sec, currentReport) : renderOverview(currentReport);
+  try {
+    if (activeTabId === "overview") {
+      bodyHtml = renderOverview(currentReport);
+    } else if (activeTabId === "weekly") {
+      bodyHtml = renderWeeklyRecap(currentReport);
+    } else {
+      const sec = (currentReport.sections || []).find((s) => s.id === activeTabId);
+      bodyHtml = sec ? renderSection(sec, currentReport) : renderOverview(currentReport);
+    }
+  } catch (err) {
+    // One malformed field shouldn't blank the whole reader; other tabs still work.
+    console.error(err);
+    bodyHtml = `<div class="card locked-box"><p class="subtitle">這個分頁的資料格式異常，無法顯示。其他分頁不受影響，可左右滑動或從上方切換。</p></div>`;
   }
 
   view.innerHTML = `
     ${bodyHtml}
     ${renderPager()}
     <div class="footer-note">
-      v3.0 · AES-256-GCM 本機端對端解密 · 支援離線閱讀與左右滑動切換 · ${esc(currentReport.generated_at || currentReport.date)}
+      v3.1 · AES-256-GCM 本機端對端解密 · 支援離線閱讀與左右滑動切換 · ${esc(currentReport.generated_at || currentReport.date)}
     </div>
   `;
 
@@ -972,6 +978,7 @@ function fetchIssueCached(file) {
   if (!pendingIssueFetches.has(file)) {
     const p = fetchEncryptedJson(`./data/${file}`, currentCryptoKey)
       .then((rep) => {
+        rep = normalizeReport(rep);
         decryptedCache.set(file, rep);
         return rep;
       })
@@ -1621,19 +1628,24 @@ async function syncFeedback() {
   }
 }
 
+let loadIssueSeq = 0;
+
 async function loadIssue(file, targetTab = "overview") {
+  const seq = ++loadIssueSeq; // only the most recent selection may touch the view
   stopSpeech();
   document.getElementById("loadingView").classList.remove("hidden");
   const view = document.getElementById("reportView");
   view.classList.add("hidden");
   try {
-    const rep = await fetchEncryptedJson(`./data/${file}`, currentCryptoKey);
+    const rep = normalizeReport(await fetchEncryptedJson(`./data/${file}`, currentCryptoKey));
+    if (seq !== loadIssueSeq) return;
     decryptedCache.set(file, rep);
     currentReport = rep;
     currentTabs = buildTabs(currentReport);
     activeTabId = currentTabs.some((t) => t.id === targetTab) ? targetTab : "overview";
     renderActiveTab();
   } catch (err) {
+    if (seq !== loadIssueSeq) return;
     console.error(err);
     // Clear the previous issue so tabs/swipes don't show it under the new selection.
     currentReport = null;
@@ -1646,9 +1658,36 @@ async function loadIssue(file, targetTab = "overview") {
       </div>`;
     document.getElementById("retryIssueBtn").addEventListener("click", () => loadIssue(file, targetTab));
   } finally {
-    document.getElementById("loadingView").classList.add("hidden");
-    view.classList.remove("hidden");
+    if (seq === loadIssueSeq) {
+      document.getElementById("loadingView").classList.add("hidden");
+      view.classList.remove("hidden");
+    }
   }
+}
+
+// Older issues may predate the publish-time type checks: coerce list fields so a
+// stray string renders as one bullet instead of breaking the tab.
+function normalizeReport(rep) {
+  const asList = (v) => (Array.isArray(v) ? v : v === undefined || v === null || v === "" ? [] : [v]);
+  if (!rep || typeof rep !== "object") return rep;
+  for (const k of ["executive_summary", "watch_ahead", "market_snapshot", "watchlist_updates", "sections", "watch_review", "corrections"]) {
+    if (rep[k] !== undefined) rep[k] = asList(rep[k]);
+  }
+  for (const sec of rep.sections || []) {
+    if (!sec || typeof sec !== "object") continue;
+    sec.items = asList(sec.items);
+    for (const it of sec.items) {
+      if (!it || typeof it !== "object") continue;
+      for (const k of ["key_data", "sources"]) if (it[k] !== undefined) it[k] = asList(it[k]);
+    }
+  }
+  for (const w of rep.watchlist_updates || []) {
+    const r = w?.earnings_recap;
+    if (r && typeof r === "object") for (const k of ["metrics", "highlights", "sources"]) if (r[k] !== undefined) r[k] = asList(r[k]);
+  }
+  const wr = rep.weekly_recap;
+  if (wr && typeof wr === "object") for (const k of ["themes", "next_week_calendar"]) if (wr[k] !== undefined) wr[k] = asList(wr[k]);
+  return rep;
 }
 
 async function boot(rawKey) {
@@ -1708,15 +1747,16 @@ document.getElementById("refreshBtn").addEventListener("click", async () => {
   decryptedCache.clear();
   if ("caches" in window) {
     try {
-      // Drop only the app shell; keep downloaded issues for offline reading.
+      // Drop only this app's shell caches. Keep downloaded issues for offline reading,
+      // and never touch caches of other apps on the same github.io origin.
       const keys = await caches.keys();
-      await Promise.all(keys.filter((k) => k !== DATA_CACHE_NAME).map((k) => caches.delete(k)));
+      await Promise.all(keys.filter((k) => k.startsWith("world-brief-") && k !== DATA_CACHE_NAME).map((k) => caches.delete(k)));
     } catch {}
   }
   if ("serviceWorker" in navigator) {
     try {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map((r) => r.update()));
+      const reg = await navigator.serviceWorker.getRegistration("./");
+      if (reg) await reg.update();
     } catch {}
   }
   showToast("正在重新載入最新版本…");

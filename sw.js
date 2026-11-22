@@ -1,11 +1,11 @@
 // App shell is versioned (replaced on every release); encrypted data lives in its
 // own unversioned cache so offline issues survive app updates.
-const SHELL_CACHE = "world-brief-shell-v3.0";
+const SHELL_CACHE = "world-brief-shell-v3.1";
 const DATA_CACHE = "world-brief-data-v1";
 const SHELL_ASSETS = [
   "./",
   "./index.html",
-  "./app.js?v=10",
+  "./app.js?v=11",
   "./apple-touch-icon.png?v=4",
   "./icon-512.png?v=4",
 ];
@@ -50,17 +50,25 @@ async function migrateOldCaches(oldNames) {
   await trimDataCache(data);
 }
 
+// If any shell asset fails to download, install fails and the current version keeps
+// running (with its caches) instead of activating a half-cached update.
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(SHELL_CACHE).then((cache) => cache.addAll(SHELL_ASSETS)).catch(() => {})
+    caches.open(SHELL_CACHE)
+      .then((cache) => cache.addAll(SHELL_ASSETS))
+      .then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
+
+// Only caches this app created; other apps on the same github.io origin share CacheStorage.
+const OWN_CACHE_PREFIX = "world-brief-";
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
-      const old = (await caches.keys()).filter((k) => k !== SHELL_CACHE && k !== DATA_CACHE);
+      const old = (await caches.keys()).filter(
+        (k) => k.startsWith(OWN_CACHE_PREFIX) && k !== SHELL_CACHE && k !== DATA_CACHE
+      );
       try {
         await migrateOldCaches(old);
       } catch {}
