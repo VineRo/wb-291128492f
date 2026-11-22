@@ -588,6 +588,7 @@ function renderOverview(report) {
     ${marketHtml}
     ${watchlistHtml}
     ${topicsHtml}
+    ${renderEarningsCalendar(report)}
     ${renderWatchReview(report)}
     ${watchHtml}
   `;
@@ -728,6 +729,13 @@ document.getElementById("reportView").addEventListener("click", (e) => {
   if (btn.dataset.action === "recheck") document.getElementById("refreshBtn").click();
   else if (btn.dataset.action === "catchup-open") openCatchup();
   else if (btn.dataset.action === "catchup-dismiss") dismissCatchup();
+  else if (btn.dataset.action === "ics-one") downloadIcs([getEarningsEvents(currentReport).dated[Number(btn.dataset.icsIdx)]]);
+  else if (btn.dataset.action === "ics-all") downloadIcs(getEarningsEvents(currentReport).dated);
+});
+
+document.getElementById("reportView").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-story]");
+  if (btn) openStory(btn.dataset.story, currentReport?.date);
 });
 
 function renderSection(sec, report) {
@@ -788,6 +796,15 @@ function renderSection(sec, report) {
               </a>
             `).join("")}
           </div>
+          <div class="item-actions">
+            ${item.story_id ? `<button class="story-btn" data-story="${esc(item.story_id)}">🧵 事件時間軸</button>` : "<span></span>"}
+            <div class="vote-group">
+              ${[1, -1].map((v) => {
+                const on = getVote(report.date, item.headline) === v;
+                return `<button class="vote-btn ${on ? "on" : ""}" data-vote="${v}" data-vote-sec="${esc(sec.id)}" data-vote-idx="${idx}" aria-pressed="${on}" title="${v > 0 ? "多報導這類" : "少報導這類"}">${v > 0 ? "👍" : "👎"}</button>`;
+              }).join("")}
+            </div>
+          </div>
         </div>
       `;
     }).join("")}
@@ -836,13 +853,21 @@ function renderActiveTab() {
     ${bodyHtml}
     ${renderPager()}
     <div class="footer-note">
-      v2.9 · AES-256-GCM 本機端對端解密 · 支援離線閱讀與左右滑動切換 · ${esc(currentReport.generated_at || currentReport.date)}
+      v3.0 · AES-256-GCM 本機端對端解密 · 支援離線閱讀與左右滑動切換 · ${esc(currentReport.generated_at || currentReport.date)}
     </div>
   `;
 
   view.querySelectorAll("[data-jump]").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (btn.dataset.jump) switchTab(btn.dataset.jump);
+    });
+  });
+
+  view.querySelectorAll("[data-vote-sec]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const sec = (currentReport.sections || []).find((s) => s.id === btn.dataset.voteSec);
+      const item = sec?.items?.[Number(btn.dataset.voteIdx)];
+      if (sec && item) toggleVote(currentReport.date, sec, item, Number(btn.dataset.vote));
     });
   });
 
@@ -1056,17 +1081,19 @@ function scheduleSearch(query) {
   searchDebounce = setTimeout(() => runSearch(query), 250);
 }
 
+const MODAL_IDS = ["searchModal", "bookmarksModal", "watchlistModal", "catchupModal", "storyModal"];
+
 function setModalOpen(id, open) {
   const el = document.getElementById(id);
   if (!el) return;
   el.classList.toggle("hidden", !open);
-  const anyOpen = ["searchModal", "bookmarksModal", "watchlistModal", "catchupModal"].some(
+  const anyOpen = MODAL_IDS.some(
     (m) => !document.getElementById(m).classList.contains("hidden")
   );
   document.body.style.overflow = anyOpen ? "hidden" : "";
 }
 
-["searchModal", "bookmarksModal", "watchlistModal", "catchupModal"].forEach((id) => {
+MODAL_IDS.forEach((id) => {
   document.getElementById(id).addEventListener("click", (e) => {
     if (e.target.id === id) setModalOpen(id, false);
   });
@@ -1117,6 +1144,7 @@ document.getElementById("bookmarksBtn").addEventListener("click", () => {
   renderBookmarksModal();
   setModalOpen("bookmarksModal", true);
 });
+document.getElementById("closeStoryBtn").addEventListener("click", () => setModalOpen("storyModal", false));
 document.getElementById("closeCatchupBtn").addEventListener("click", () => setModalOpen("catchupModal", false));
 document.getElementById("closeBookmarksBtn").addEventListener("click", () => {
   setModalOpen("bookmarksModal", false);
@@ -1141,9 +1169,34 @@ const DEFAULT_INDUSTRY_TOPICS = [
 ];
 let editableWatchlist = { updated_at: new Date().toISOString(), items: [], industry_topics: DEFAULT_INDUSTRY_TOPICS };
 
-function getSyncTarget() {
+// Files the phone writes: in the separate sync repo at its root, or (legacy) under data/ in the Pages repo.
+function getSyncTarget(name = "watchlist.enc") {
   const repo = localStorage.getItem(GH_SYNC_REPO_KEY) || PAGES_REPO;
-  return { repo, path: repo === PAGES_REPO ? "data/watchlist.enc" : "watchlist.enc" };
+  return { repo, path: repo === PAGES_REPO ? `data/${name}` : name };
+}
+
+// Encrypts obj and writes it to the sync repo via the GitHub Contents API.
+async function putEncryptedToGitHub(name, obj, message) {
+  const token = localStorage.getItem(GH_TOKEN_KEY);
+  if (!token) throw Object.assign(new Error("no token"), { noToken: true });
+  const encStr = await encryptJsonPayload(obj, currentCryptoKey);
+  const contentB64 = btoa(unescape(encodeURIComponent(encStr)));
+  const target = getSyncTarget(name);
+  const apiUrl = `https://api.github.com/repos/${target.repo}/contents/${target.path}`;
+  const auth = { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" };
+  let sha;
+  const getRes = await fetch(apiUrl, { headers: auth });
+  if (getRes.ok) {
+    sha = (await getRes.json()).sha;
+  } else if (getRes.status !== 404) {
+    throw new Error(getRes.status === 401 || getRes.status === 403 ? "Token 無效或沒有此 repo 權限" : `GitHub HTTP ${getRes.status}`);
+  }
+  const putRes = await fetch(apiUrl, {
+    method: "PUT",
+    headers: { ...auth, "Content-Type": "application/json" },
+    body: JSON.stringify({ message, content: contentB64, ...(sha ? { sha } : {}) }),
+  });
+  if (!putRes.ok) throw new Error(`GitHub HTTP ${putRes.status}`);
 }
 
 function renderWatchlistModalItems() {
@@ -1326,40 +1379,227 @@ document.getElementById("wlSyncBtn").addEventListener("click", async () => {
   }
   try {
     showToast("正在加密並同步至排程…");
-    const encStr = await encryptJsonPayload(editableWatchlist, currentCryptoKey);
-    const contentB64 = btoa(unescape(encodeURIComponent(encStr)));
-    const target = getSyncTarget();
-    const apiUrl = `https://api.github.com/repos/${target.repo}/contents/${target.path}`;
-    let sha = undefined;
-    const getRes = await fetch(apiUrl, {
-      headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
-    });
-    if (getRes.ok) {
-      const meta = await getRes.json();
-      sha = meta.sha;
-    } else if (getRes.status !== 404) {
-      throw new Error(getRes.status === 401 || getRes.status === 403 ? "Token 無效或沒有此 repo 權限" : `GitHub HTTP ${getRes.status}`);
-    }
-    const putRes = await fetch(apiUrl, {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        message: "Sync encrypted watchlist from mobile",
-        content: contentB64,
-        ...(sha ? { sha } : {}),
-      }),
-    });
-    if (!putRes.ok) throw new Error(`GitHub HTTP ${putRes.status}`);
+    await putEncryptedToGitHub("watchlist.enc", editableWatchlist, "Sync encrypted watchlist from mobile");
     showToast("✓ 已加密同步！明早 8:00 自動生效");
   } catch (err) {
     console.error(err);
     showToast(`同步失敗：${err.message}`);
   }
 });
+
+// ---------- Story timeline (items sharing a story_id across issues) ----------
+
+async function openStory(storyId, fromDate) {
+  const box = document.getElementById("storyList");
+  box.innerHTML = `<p class="subtitle">正在本機整理這個事件的發展…</p>`;
+  setModalOpen("storyModal", true);
+  // Index entries list their story ids (new issues); older issues without the list are skipped.
+  const metas = (currentIndex?.issues || []).filter((m) => (m.stories || []).includes(storyId));
+  const loaded = await Promise.all(metas.map((m) => fetchIssueCached(m.file).then((r) => ({ m, r }), () => ({ m, r: null }))));
+  const entries = [];
+  let failed = 0;
+  for (const { m, r } of loaded) {
+    if (!r) { failed++; continue; }
+    for (const sec of r.sections || []) {
+      for (const item of sec.items || []) {
+        if (item.story_id === storyId) entries.push({ file: m.file, date: r.date, sec, item });
+      }
+    }
+  }
+  entries.sort((a, b) => a.date.localeCompare(b.date));
+  const note = entries.length <= 1
+    ? `<p class="subtitle" style="font-size:12.5px;">這是這個事件目前唯一的一則報導，之後的發展會自動串在這裡。</p>`
+    : `<p class="subtitle" style="font-size:12.5px;">共 ${entries.length} 則，從 ${esc(shortDate(entries[0].date))} 到 ${esc(shortDate(entries[entries.length - 1].date))}。</p>`;
+  box.innerHTML = note + `<div class="timeline">${entries.map((e, i) => `
+      <button class="timeline-item ${e.date === fromDate ? "current" : ""}" data-story-file="${esc(e.file)}" data-story-tab="${esc(e.sec.id)}">
+        <div class="timeline-date">${esc(e.date)} · ${esc(SHORT_TAB_NAMES[e.sec.id] || e.sec.name)}${e.date === fromDate ? " · 目前這則" : ""}</div>
+        <div class="search-hit-title">${esc(e.item.headline)}</div>
+        <div class="search-hit-snip">${esc(String((i > 0 && e.item.followup_note) || e.item.summary || "").slice(0, 110))}</div>
+      </button>`).join("")}</div>` +
+    (failed ? `<p class="subtitle" style="font-size:12px;">（另有 ${failed} 期目前無法載入）</p>` : "");
+  box.querySelectorAll("[data-story-file]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      setModalOpen("storyModal", false);
+      document.getElementById("issueSelect").value = btn.dataset.storyFile;
+      await loadIssue(btn.dataset.storyFile, btn.dataset.storyTab);
+    });
+  });
+}
+
+// ---------- Earnings calendar (+ .ics export, generated on device) ----------
+
+const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
+
+function getEarningsEvents(report) {
+  const today = taipeiNow().date;
+  const dated = [];
+  const undated = [];
+  for (const w of report.watchlist_updates || []) {
+    const ne = w.next_earnings;
+    if (!ne) continue;
+    const iso = /^\d{4}-\d{2}-\d{2}$/.test(ne.date_iso || "") ? ne.date_iso : (String(ne.date || "").match(/^\d{4}-\d{2}-\d{2}/) || [])[0];
+    const ev = { name: w.name, symbol: w.symbol || "", event: ne.event || "法說會", dateText: ne.date || "", confirmed: Boolean(ne.confirmed), iso };
+    if (iso && iso >= today) dated.push(ev);
+    else if (!iso) undated.push(ev);
+  }
+  dated.sort((a, b) => a.iso.localeCompare(b.iso));
+  return { dated, undated, today };
+}
+
+const daysBetween = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
+
+function renderEarningsCalendar(report) {
+  const { dated, undated, today } = getEarningsEvents(report);
+  if (!dated.length && !undated.length) return "";
+  const rows = dated.map((e, i) => {
+    const d = daysBetween(today, e.iso);
+    const wd = WEEKDAYS[new Date(`${e.iso}T00:00:00Z`).getUTCDay()];
+    return `
+      <div class="earn-row">
+        <div class="earn-when"><div class="earn-d">${d === 0 ? "今天" : `D-${d}`}</div><div class="earn-date">${esc(shortDate(e.iso))}（${wd}）</div></div>
+        <div class="earn-what">
+          <div class="earn-name">${esc(e.name)}</div>
+          <div class="earn-event">${esc(e.event)} <span class="badge ${e.confirmed ? "badge-followup" : "badge-pending"}">${e.confirmed ? "已公告" : "預估"}</span></div>
+        </div>
+        <button class="earn-ics" data-action="ics-one" data-ics-idx="${i}" title="加入行事曆">📅</button>
+      </div>`;
+  }).join("");
+  const undatedRows = undated.map((e) => `
+      <div class="earn-row muted">
+        <div class="earn-when"><div class="earn-d">未定</div></div>
+        <div class="earn-what"><div class="earn-name">${esc(e.name)}</div><div class="earn-event">${esc(e.event)} · ${esc(e.dateText)}</div></div>
+      </div>`).join("");
+  return `
+    <div class="card">
+      <div class="card-head-row">
+        <div class="card-title">近期法說會／財報會議</div>
+        ${dated.length > 1 ? `<button data-action="ics-all" style="font-size:12px;padding:4px 10px;">📅 全部加入</button>` : ""}
+      </div>
+      <div class="earn-list">${rows}${undatedRows}</div>
+    </div>`;
+}
+
+function icsEscape(s) {
+  return String(s).replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+}
+
+// RFC 5545 line folding at 75 octets, without splitting a UTF-8 character.
+function icsFold(line) {
+  const enc = new TextEncoder();
+  const out = [];
+  let cur = "";
+  let bytes = 0;
+  for (const ch of line) {
+    const n = enc.encode(ch).length;
+    if (bytes + n > (out.length ? 74 : 75)) { out.push(cur); cur = ""; bytes = 0; }
+    cur += ch;
+    bytes += n;
+  }
+  out.push(cur);
+  return out.join("\r\n ");
+}
+
+function stableHash(s) {
+  let h = 5381;
+  for (const ch of s) h = ((h * 33) ^ ch.codePointAt(0)) >>> 0;
+  return h.toString(16);
+}
+
+function buildIcs(events) {
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Daily World Brief//Earnings//ZH-TW", "CALSCALE:GREGORIAN"];
+  for (const e of events) {
+    const start = e.iso.replace(/-/g, "");
+    const end = new Date(Date.parse(`${e.iso}T00:00:00Z`) + 86400000).toISOString().slice(0, 10).replace(/-/g, "");
+    lines.push(
+      "BEGIN:VEVENT",
+      // Same UID for the same company + event, so re-importing updates instead of duplicating.
+      `UID:wb-${stableHash(`${e.symbol || e.name}|${e.event}`)}@world-brief`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART;VALUE=DATE:${start}`,
+      `DTEND;VALUE=DATE:${end}`,
+      icsFold(`SUMMARY:${icsEscape(`${e.name} ${e.event}${e.confirmed ? "" : "（預估）"}`)}`),
+      icsFold(`DESCRIPTION:${icsEscape(`${e.dateText || e.iso}｜來源：Daily World Brief`)}`),
+      "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:法說會提醒", "TRIGGER:-P1D", "END:VALARM",
+      "END:VEVENT"
+    );
+  }
+  lines.push("END:VCALENDAR");
+  return lines.join("\r\n") + "\r\n";
+}
+
+function downloadIcs(events) {
+  const list = (events || []).filter(Boolean);
+  if (!list.length) return;
+  const blob = new Blob([buildIcs(list)], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = list.length === 1 ? `${list[0].symbol || list[0].name}-earnings.ics`.replace(/[\\/:*?"<>|\s]+/g, "_") : "watchlist-earnings.ics";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  showToast(list.length === 1 ? "已產生行事曆檔案" : `已產生 ${list.length} 個法說會行事曆事件`);
+}
+
+// ---------- Reader feedback (👍/👎) → encrypted sync → agent reads feedback.json ----------
+
+const FEEDBACK_KEY = "wb_feedback_v1";
+const FEEDBACK_MAX = 300;
+const FEEDBACK_SYNC_DELAY = 4000;
+let feedbackSyncTimer = null;
+
+function getFeedback() {
+  try {
+    const f = JSON.parse(localStorage.getItem(FEEDBACK_KEY) || "null");
+    if (f && Array.isArray(f.items)) return f;
+  } catch {}
+  return { updated_at: new Date().toISOString(), items: [] };
+}
+
+function getVote(date, headline) {
+  return getFeedback().items.find((x) => x.date === date && x.headline === String(headline).slice(0, 150))?.vote || 0;
+}
+
+function toggleVote(date, sec, item, vote) {
+  const fb = getFeedback();
+  const headline = String(item.headline).slice(0, 150);
+  const prev = fb.items.find((x) => x.date === date && x.headline === headline);
+  fb.items = fb.items.filter((x) => x !== prev);
+  if (!prev || prev.vote !== vote) {
+    const entry = { date, section: sec.id, headline, vote };
+    if (item.sector) entry.sector = String(item.sector).slice(0, 40);
+    fb.items.unshift(entry);
+  }
+  fb.items = fb.items.slice(0, FEEDBACK_MAX);
+  fb.updated_at = new Date().toISOString();
+  localStorage.setItem(FEEDBACK_KEY, JSON.stringify(fb));
+  renderActiveTab();
+  const removed = prev && prev.vote === vote;
+  showToast(removed ? "已取消回饋" : vote > 0 ? "👍 之後會多報導這類" : "👎 之後會少報導這類");
+  clearTimeout(feedbackSyncTimer);
+  feedbackSyncTimer = setTimeout(syncFeedback, FEEDBACK_SYNC_DELAY);
+}
+
+// This device's list is authoritative (last writer wins across devices).
+async function syncFeedback() {
+  try {
+    await putEncryptedToGitHub("feedback.enc", getFeedback(), "Sync encrypted reader feedback");
+  } catch (err) {
+    if (err.noToken) {
+      try {
+        if (!localStorage.getItem("wb_feedback_hint_v1")) {
+          localStorage.setItem("wb_feedback_hint_v1", "1");
+          showToast("回饋已存在本機；在「管理清單」設定同步 Token 後會自動送回排程");
+        }
+      } catch {}
+      return;
+    }
+    console.error(err);
+    showToast(`回饋同步失敗：${err.message}`);
+  }
+}
 
 async function loadIssue(file, targetTab = "overview") {
   stopSpeech();

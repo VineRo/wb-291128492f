@@ -452,6 +452,105 @@
       color: var(--accent);
       background: var(--accent-soft);
     }
+    .item-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .story-btn {
+      font-size: 12.5px;
+      padding: 6px 10px;
+    }
+    .vote-group {
+      display: flex;
+      gap: 6px;
+    }
+    .vote-btn {
+      min-width: 40px;
+      min-height: 34px;
+      padding: 4px 8px;
+      font-size: 15px;
+      opacity: 0.55;
+    }
+    .vote-btn.on {
+      opacity: 1;
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+    }
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      border-left: 2px solid var(--border);
+      margin-left: 6px;
+      padding-left: 12px;
+      gap: 8px;
+    }
+    .timeline-item {
+      position: relative;
+      text-align: left;
+      width: 100%;
+    }
+    .timeline-item::before {
+      content: "";
+      position: absolute;
+      left: -19px;
+      top: 14px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+    .timeline-item.current {
+      border-color: var(--accent);
+    }
+    .timeline-item.current::before {
+      background: var(--signal);
+    }
+    .timeline-date {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+    .earn-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .earn-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .earn-row.muted {
+      opacity: 0.7;
+    }
+    .earn-when {
+      width: 72px;
+      flex-shrink: 0;
+    }
+    .earn-d {
+      font-weight: 800;
+      font-size: 15px;
+    }
+    .earn-date, .earn-event {
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+    .earn-what {
+      flex: 1;
+      min-width: 0;
+    }
+    .earn-name {
+      font-weight: 700;
+    }
+    .earn-ics {
+      min-width: 40px;
+      min-height: 36px;
+      padding: 4px 8px;
+    }
     .badge-pending {
       color: var(--muted);
       background: color-mix(in srgb, var(--muted) 14%, transparent);
@@ -848,6 +947,17 @@
     </div>
   </div>
 
+  <!-- Story Timeline Modal -->
+  <div id="storyModal" class="modal-backdrop hidden">
+    <div class="modal-sheet">
+      <div class="modal-head">
+        <h3>事件時間軸</h3>
+        <button id="closeStoryBtn">✕</button>
+      </div>
+      <div id="storyList"></div>
+    </div>
+  </div>
+
   <!-- Catch-up Modal -->
   <div id="catchupModal" class="modal-backdrop hidden">
     <div class="modal-sheet">
@@ -926,6 +1036,6 @@
 
   <div id="toast" class="toast"></div>
 
-  <script src="./app.js?v=9"></script>
+  <script src="./app.js?v=10"></script>
 </body>
 </html>
