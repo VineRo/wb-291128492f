@@ -1769,7 +1769,8 @@ document.getElementById("refreshBtn").addEventListener("click", async () => {
     } catch {}
   }
   showToast("正在重新載入最新版本…");
-  window.location.reload();
+  const hash = currentKeyStr ? `#${currentKeyStr}` : window.location.hash;
+  window.location.replace(`${window.location.pathname}?r=${Date.now()}${hash}`);
 });
 
 document.getElementById("unlockBtn").addEventListener("click", () => {
