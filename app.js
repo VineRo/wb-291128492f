@@ -6,15 +6,23 @@ const BOOKMARKS_KEY = "wb_bookmarks_v1";
 
 const SHORT_TAB_NAMES = {
   taiwan: "台灣焦點",
-  industry: "產業深水區",
-  radar: "前瞻雷達",
   economy: "國際經濟",
   markets: "金融市場",
   politics: "國際政治",
   finance: "財金企業",
   tech: "科技 AI",
+  industry: "產業深水區",
+  radar: "前瞻雷達",
   weekly: "本週回顧",
 };
+const TAB_ORDER = ["taiwan", "economy", "markets", "politics", "finance", "tech", "industry", "radar"];
+function orderedSections(report) {
+  return [...(report?.sections || [])].sort((a, b) => {
+    const ia = TAB_ORDER.indexOf(a.id);
+    const ib = TAB_ORDER.indexOf(b.id);
+    return (ia === -1 ? 50 : ia) - (ib === -1 ? 50 : ib);
+  });
+}
 
 // Register offline Service Worker
 if ("serviceWorker" in navigator) {
@@ -399,7 +407,7 @@ const decryptedCache = new Map();
 
 function buildTabs(report) {
   const tabs = [{ id: "overview", label: "總覽", count: null }];
-  for (const sec of (report.sections || [])) {
+  for (const sec of orderedSections(report)) {
     tabs.push({
       id: sec.id,
       label: SHORT_TAB_NAMES[sec.id] || sec.name,
@@ -553,7 +561,7 @@ function renderOverview(report) {
     ? `<div class="card">
          <div class="card-title">主題快速切換</div>
          <div class="topic-grid">
-           ${report.sections.map((s) => `
+           ${orderedSections(report).map((s) => `
              <button class="topic-jump" data-jump="${esc(s.id)}">
                <span class="topic-jump-name">${esc(SHORT_TAB_NAMES[s.id] || s.name)}${isTabRead(report.date, s.id) ? " ✓" : ""}</span>
                <span class="topic-jump-meta">${(s.items || []).length} 則深度分析 →</span>
