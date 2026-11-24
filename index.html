@@ -74,13 +74,11 @@
       position: sticky;
       top: 0;
       z-index: 30;
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      background: color-mix(in srgb, var(--bg) 90%, transparent);
+      background: var(--bg);
       border-bottom: 1px solid var(--border);
     }
     .topbar {
-      padding: calc(env(safe-area-inset-top, 0px) + 10px) 14px 8px;
+      padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 8px;
     }
     .topbar-inner {
       max-width: 780px;
@@ -88,22 +86,25 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 6px;
+      gap: 8px;
     }
     .brand {
       display: flex;
       align-items: center;
-      gap: 7px;
+      gap: 6px;
       font-weight: 800;
-      font-size: 13.5px;
+      font-size: 14px;
+      color: var(--text);
       letter-spacing: 0.08em;
       white-space: nowrap;
+      flex-shrink: 0;
     }
     .brand-mark {
       width: 8px;
       height: 8px;
       border-radius: 50%;
       background: var(--signal);
+      flex-shrink: 0;
     }
     .offline-pill {
       font-size: 10.5px;
@@ -119,6 +120,26 @@
       align-items: center;
       gap: 5px;
       flex-wrap: nowrap;
+      min-width: 0;
+    }
+    .controls select {
+      height: 31px;
+      padding: 0 7px;
+      font-size: 12px;
+      font-weight: 600;
+      max-width: 118px;
+    }
+    .controls button {
+      width: 31px;
+      height: 31px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1;
+      flex-shrink: 0;
     }
     select, button {
       font: inherit;
@@ -906,8 +927,8 @@
         </div>
         <div class="controls">
           <select id="issueSelect" aria-label="選擇期數"></select>
-          <button id="searchBtn" title="歷史全文搜尋">🔍</button>
-          <button id="bookmarksBtn" title="我的收藏">★</button>
+          <button id="searchBtn" title="歷史全文搜尋" aria-label="歷史全文搜尋"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+          <button id="bookmarksBtn" title="我的收藏" aria-label="我的收藏">★</button>
           <button id="fontBtn" title="調整字體大小">A</button>
           <button id="themeBtn" title="切換深淺色">◐</button>
           <button id="refreshBtn" title="重新整理">↻</button>
