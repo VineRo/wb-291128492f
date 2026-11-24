@@ -1,6 +1,6 @@
 // App shell is versioned (replaced on every release); encrypted data lives in its
 // own unversioned cache so offline issues survive app updates.
-const SHELL_CACHE = "world-brief-shell-v2.9";
+const SHELL_CACHE = "world-brief-shell-v2.10";
 const DATA_CACHE = "world-brief-data-v1";
 const SHELL_ASSETS = [
   "./",
