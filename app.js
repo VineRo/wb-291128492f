@@ -7,6 +7,7 @@ const BOOKMARKS_KEY = "wb_bookmarks_v1";
 const SHORT_TAB_NAMES = {
   taiwan: "台灣焦點",
   industry: "產業深水區",
+  radar: "前瞻雷達",
   economy: "國際經濟",
   markets: "金融市場",
   politics: "國際政治",
