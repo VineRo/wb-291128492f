@@ -805,17 +805,20 @@ function renderSection(sec, report) {
             </button>
           </div>
           <h3>${esc(item.headline)}</h3>
-          ${item.followup_note ? `<div class="followup-box"><strong>延續昨日進展：</strong>${esc(item.followup_note)}</div>` : ""}
-          <p class="news-summary">${esc(item.summary)}</p>
-          ${(item.key_data || []).length ? `
-            <div class="sub-block">
-              <div class="sub-block-label">關鍵數據與事實</div>
-              <ul>${item.key_data.map((d) => `<li>${esc(d)}</li>`).join("")}</ul>
-            </div>` : ""}
-          ${item.impact ? `
-            <div class="sub-block">
-              <div class="sub-block-label">市場與亞太／台灣影響</div>
-              <div>${esc(item.impact)}</div>
+          ${item.followup_note ? `<div class="followup-box"><strong>延續進展：</strong>${esc(item.followup_note)}</div>` : ""}
+          <div class="layer-facts">
+            <div class="layer-tag">客觀事實</div>
+            <p class="news-summary" style="margin:0;">${esc(item.summary)}</p>
+            ${(item.key_data || []).length ? `
+              <ul class="facts-data-list">${item.key_data.map((d) => `<li>${esc(d)}</li>`).join("")}</ul>` : ""}
+          </div>
+          ${(item.analysis || item.impact) ? `
+            <div class="layer-analysis">
+              <div class="layer-tag analysis">深度評析 · 結構與市場影響</div>
+              <div class="analysis-body">
+                ${item.analysis ? `<p>${esc(item.analysis)}</p>` : ""}
+                ${item.impact ? `<p>${esc(item.impact)}</p>` : ""}
+              </div>
             </div>` : ""}
           ${item.verification_note ? `<div class="verify-badge">✓ 查核說明：${esc(item.verification_note)}</div>` : ""}
           <div class="sources">
@@ -1030,7 +1033,7 @@ function searchEntries(meta, report) {
         label: SHORT_TAB_NAMES[sec.id] || sec.name,
         title: item.headline,
         snippet: item.summary,
-        hay: joinText(item.headline, item.summary, item.key_data || [], item.impact, item.followup_note),
+        hay: joinText(item.headline, item.summary, item.key_data || [], item.analysis, item.impact, item.followup_note),
       });
     }
   }
