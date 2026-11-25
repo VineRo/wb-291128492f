@@ -3,6 +3,10 @@ const THEME_KEY = "wb_theme_v1";
 const FONT_KEY = "wb_font_v1";
 const READ_KEY = "wb_read_v1";
 const BOOKMARKS_KEY = "wb_bookmarks_v1";
+const LANG_KEY = "wb_lang_v1";
+
+let currentLang = localStorage.getItem(LANG_KEY) === "en" ? "en" : "zh";
+const tr = (zh, en) => (currentLang === "en" ? en : zh);
 
 const SHORT_TAB_NAMES = {
   taiwan: "台灣焦點",
@@ -15,6 +19,66 @@ const SHORT_TAB_NAMES = {
   radar: "前瞻雷達",
   weekly: "本週回顧",
 };
+const SHORT_TAB_NAMES_EN = {
+  taiwan: "Taiwan",
+  economy: "Economy",
+  markets: "Markets",
+  politics: "Politics",
+  finance: "Finance",
+  tech: "Tech & AI",
+  industry: "Deep Dive",
+  radar: "Radar",
+  weekly: "Weekly",
+};
+function tabShortName(id, fallback) {
+  return currentLang === "en"
+    ? (SHORT_TAB_NAMES_EN[id] || fallback || id)
+    : (SHORT_TAB_NAMES[id] || fallback || id);
+}
+
+function getLocalizedReport(report) {
+  if (!report || currentLang !== "en") return report;
+  const en = report.en;
+  if (!en || typeof en !== "object") {
+    return { ...report, _missingEn: true };
+  }
+  const enSecMap = new Map((en.sections || []).map((s) => [s.id, s]));
+  const mergedSections = (report.sections || []).map((sec) => {
+    const es = enSecMap.get(sec.id);
+    if (!es) return sec;
+    const mergedItems = (sec.items || []).map((it, idx) => {
+      const eit = es.items?.[idx];
+      return eit ? { ...it, ...eit, sources: eit.sources || it.sources } : it;
+    });
+    return { ...sec, ...es, items: mergedItems };
+  });
+  const mergedWatchlist = (report.watchlist_updates || []).map((w, idx) => {
+    const ew = en.watchlist_updates?.[idx];
+    if (!ew) return w;
+    return {
+      ...w,
+      ...ew,
+      next_earnings: ew.next_earnings ? { ...w.next_earnings, ...ew.next_earnings } : w.next_earnings,
+      earnings_recap: ew.earnings_recap
+        ? { ...w.earnings_recap, ...ew.earnings_recap, sources: ew.earnings_recap.sources || w.earnings_recap?.sources }
+        : w.earnings_recap,
+    };
+  });
+  const mergedSnap = (report.market_snapshot || []).map((m, idx) => {
+    const em = en.market_snapshot?.[idx];
+    return em ? { ...m, ...em } : m;
+  });
+  return {
+    ...report,
+    ...en,
+    date: report.date,
+    generated_at: report.generated_at,
+    audio_file: en.audio_file || "",
+    market_snapshot: mergedSnap,
+    watchlist_updates: mergedWatchlist,
+    sections: mergedSections,
+  };
+}
 const TAB_ORDER = ["taiwan", "economy", "markets", "politics", "finance", "tech", "industry", "radar"];
 function orderedSections(report) {
   return [...(report?.sections || [])].sort((a, b) => {
@@ -50,6 +114,28 @@ document.getElementById("themeBtn").addEventListener("click", () => {
   const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
   localStorage.setItem(THEME_KEY, next);
   applyTheme(next);
+});
+
+// Language toggle
+function applyLangBtn() {
+  const btn = document.getElementById("langBtn");
+  if (!btn) return;
+  btn.textContent = currentLang === "en" ? "中" : "EN";
+  btn.classList.toggle("en-active", currentLang === "en");
+  document.documentElement.lang = currentLang === "en" ? "en" : "zh-Hant";
+}
+applyLangBtn();
+document.getElementById("langBtn").addEventListener("click", () => {
+  stopSpeech();
+  activeAudioFile = "";
+  currentLang = currentLang === "en" ? "zh" : "en";
+  localStorage.setItem(LANG_KEY, currentLang);
+  applyLangBtn();
+  if (currentReport) {
+    currentTabs = buildTabs(getLocalizedReport(currentReport));
+    renderActiveTab();
+  }
+  showToast(currentLang === "en" ? "Switched to English" : "已切換為繁體中文");
 });
 
 // Font size
@@ -291,13 +377,13 @@ function stopSpeech() {
   }
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
   isSpeaking = false;
-  updateAudioUi("點擊開始收聽主播語音摘要");
+  updateAudioUi(tr("點擊開始收聽主播語音摘要", "Tap Play to listen to the audio briefing"));
 }
 
 function updateAudioUi(statusText) {
   const btn = document.getElementById("audioPlayBtn");
   const st = document.getElementById("audioStatus");
-  if (btn) btn.textContent = isSpeaking ? "⏸ 暫停" : "▶ 播報";
+  if (btn) btn.textContent = isSpeaking ? tr("⏸ 暫停", "⏸ Pause") : tr("▶ 播報", "▶ Play");
   if (st && statusText) st.textContent = statusText;
 }
 
@@ -314,9 +400,10 @@ function syncAudioProgress() {
 
 async function toggleSpeech() {
   if (!currentReport) return;
+  const activeRep = getLocalizedReport(currentReport);
 
   // Prefer encrypted Neural MP3 audio
-  if (currentReport.audio_file) {
+  if (activeRep.audio_file) {
     try {
       if (!audioEl) {
         audioEl = new Audio();
@@ -325,28 +412,28 @@ async function toggleSpeech() {
         audioEl.addEventListener("loadedmetadata", syncAudioProgress);
         audioEl.addEventListener("ended", () => {
           isSpeaking = false;
-          updateAudioUi("播報完畢");
+          updateAudioUi(tr("播報完畢", "Finished"));
         });
         audioEl.addEventListener("pause", () => {
           if (!audioEl.ended) {
             isSpeaking = false;
-            updateAudioUi("已暫停");
+            updateAudioUi(tr("已暫停", "Paused"));
           }
         });
         audioEl.addEventListener("play", () => {
           isSpeaking = true;
-          updateAudioUi(`神經網路主播播報中（${speechRate}x）`);
+          updateAudioUi(tr(`神經網路主播播報中（${speechRate}x）`, `Neural anchor playing (${speechRate}x)`));
         });
       }
 
-      if (activeAudioFile !== currentReport.audio_file) {
-        updateAudioUi("正在本機解密音檔…");
-        const url = await fetchDecryptedAudioUrl(`./data/${currentReport.audio_file}`, currentCryptoKey);
+      if (activeAudioFile !== activeRep.audio_file) {
+        updateAudioUi(tr("正在本機解密音檔…", "Decrypting audio locally…"));
+        const url = await fetchDecryptedAudioUrl(`./data/${activeRep.audio_file}`, currentCryptoKey);
         audioEl.src = url;
-        activeAudioFile = currentReport.audio_file;
+        activeAudioFile = activeRep.audio_file;
         if ("mediaSession" in navigator) {
           navigator.mediaSession.metadata = new MediaMetadata({
-            title: `全球深度日報 · ${currentReport.date}`,
+            title: `${tr("全球深度日報", "Daily World Brief")} · ${activeRep.date}`,
             artist: "Daily World Brief",
             artwork: [{ src: "./icon-512.png?v=4", sizes: "512x512", type: "image/png" }],
           });
@@ -362,13 +449,13 @@ async function toggleSpeech() {
       return;
     } catch (err) {
       console.error(err);
-      showToast("音檔播放失敗，改用系統語音");
+      showToast(tr("音檔播放失敗，改用系統語音", "Audio file failed; using system voice"));
     }
   }
 
   // Fallback: browser Web Speech API
   if (!("speechSynthesis" in window)) {
-    showToast("此瀏覽器不支援語音播報");
+    showToast(tr("此瀏覽器不支援語音播報", "Speech synthesis not supported"));
     return;
   }
   if (isSpeaking) {
@@ -376,23 +463,25 @@ async function toggleSpeech() {
     return;
   }
   window.speechSynthesis.cancel();
-  const utter = new SpeechSynthesisUtterance(composeAudioScript(currentReport));
-  utter.lang = "zh-TW";
+  const utter = new SpeechSynthesisUtterance(composeAudioScript(activeRep));
+  utter.lang = currentLang === "en" ? "en-US" : "zh-TW";
   utter.rate = speechRate;
   const voices = window.speechSynthesis.getVoices();
-  const zhTw = voices.find((v) => /zh[-_]TW/i.test(v.lang)) || voices.find((v) => /zh/i.test(v.lang));
-  if (zhTw) utter.voice = zhTw;
+  const pref = currentLang === "en"
+    ? (voices.find((v) => /en[-_]US/i.test(v.lang)) || voices.find((v) => /^en/i.test(v.lang)))
+    : (voices.find((v) => /zh[-_]TW/i.test(v.lang)) || voices.find((v) => /zh/i.test(v.lang)));
+  if (pref) utter.voice = pref;
   utter.onstart = () => {
     isSpeaking = true;
-    updateAudioUi(`正在播報（${speechRate}x）…`);
+    updateAudioUi(tr(`正在播報（${speechRate}x）…`, `Playing (${speechRate}x)…`));
   };
   utter.onend = () => {
     isSpeaking = false;
-    updateAudioUi("播報結束");
+    updateAudioUi(tr("播報結束", "Finished"));
   };
   utter.onerror = () => {
     isSpeaking = false;
-    updateAudioUi("語音播報已停止");
+    updateAudioUi(tr("語音播報已停止", "Stopped"));
   };
   window.speechSynthesis.speak(utter);
 }
@@ -406,17 +495,17 @@ let activeTabId = "overview";
 const decryptedCache = new Map();
 
 function buildTabs(report) {
-  const tabs = [{ id: "overview", label: "總覽", count: null }];
+  const tabs = [{ id: "overview", label: tr("總覽", "Overview"), count: null }];
   for (const sec of orderedSections(report)) {
     tabs.push({
       id: sec.id,
-      label: SHORT_TAB_NAMES[sec.id] || sec.name,
+      label: tabShortName(sec.id, sec.name),
       fullName: sec.name,
       count: (sec.items || []).length,
     });
   }
   if (report.weekly_recap) {
-    tabs.push({ id: "weekly", label: "本週回顧", fullName: "本週回顧與下週行事曆", count: null });
+    tabs.push({ id: "weekly", label: tr("本週回顧", "Weekly"), fullName: tr("本週回顧與下週行事曆", "Weekly Recap & Calendar"), count: null });
   }
   return tabs;
 }
@@ -465,16 +554,21 @@ function renderPager() {
 }
 
 function renderOverview(report) {
+  const missingEnBanner = report._missingEn
+    ? `<div class="card" style="padding:11px 14px;border-left:3px solid var(--accent);font-size:13px;color:var(--muted);">
+         English edition is available for issues from <strong>2026-11-25</strong> onward. Displaying archived Traditional Chinese text for ${esc(report.date)}.
+       </div>`
+    : "";
   const audioHtml = `
     <div class="audio-bar">
       <div class="audio-top">
         <div class="audio-info">
-          <span class="audio-title">🎧 晨間主播語音重點播報</span>
-          <span class="audio-status" id="audioStatus">${isSpeaking ? `神經網路主播播報中（${speechRate}x）` : (report.audio_file ? "台灣神經網路主播 · 本機加密解密播放" : "本機語音合成")}</span>
+          <span class="audio-title">🎧 ${tr("晨間主播語音重點播報", "Anchor Audio Briefing")}</span>
+          <span class="audio-status" id="audioStatus">${isSpeaking ? tr(`神經網路主播播報中（${speechRate}x）`, `Neural anchor playing (${speechRate}x)`) : (report.audio_file ? tr("台灣神經網路主播 · 本機加密解密播放", "Neural Anchor · Decrypted Locally") : tr("本機語音合成", "Local Speech Synthesis"))}</span>
         </div>
         <div class="audio-actions">
           <button id="audioSpeedBtn">${speechRate}x</button>
-          <button id="audioPlayBtn" class="btn-accent">${isSpeaking ? "⏸ 暫停" : "▶ 播報"}</button>
+          <button id="audioPlayBtn" class="btn-accent">${isSpeaking ? tr("⏸ 暫停", "⏸ Pause") : tr("▶ 播報", "▶ Play")}</button>
         </div>
       </div>
       ${report.audio_file ? `
@@ -487,14 +581,14 @@ function renderOverview(report) {
 
   const execHtml = (report.executive_summary || []).length
     ? `<div class="card">
-         <div class="card-title">今日核心摘要</div>
+         <div class="card-title">${tr("今日核心摘要", "Executive Summary")}</div>
          <ul class="exec-list">${report.executive_summary.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
        </div>`
     : "";
 
   const marketHtml = (report.market_snapshot || []).length
     ? `<div class="card">
-         <div class="card-title">關鍵市場數據</div>
+         <div class="card-title">${tr("關鍵市場數據", "Market Snapshot")}</div>
          <div class="market-grid">
            ${report.market_snapshot.map((m) => `
              <div class="ticker">
@@ -511,8 +605,8 @@ function renderOverview(report) {
   const watchlistHtml = (report.watchlist_updates || []).length
     ? `<div class="card">
          <div class="card-head-row">
-           <div class="card-title">自選關注清單動態</div>
-           <button id="openWatchlistBtn" style="font-size:12px;padding:4px 10px;">⚙ 管理清單</button>
+           <div class="card-title">${tr("自選關注清單動態", "Watchlist Updates")}</div>
+           <button id="openWatchlistBtn" style="font-size:12px;padding:4px 10px;">${tr("⚙ 管理清單", "⚙ Manage")}</button>
          </div>
          <div class="watchlist-list">
            ${report.watchlist_updates.map((w) => `
@@ -520,25 +614,25 @@ function renderOverview(report) {
                <div class="watch-row-top">
                  <span class="watch-name">${esc(w.name)}</span>
                  <div style="display:flex;gap:5px;align-items:center;">
-                   ${w.type === "stock" ? `<span class="badge badge-watch">個股</span>` : ""}
-                   ${w.signal === "high" ? `<span class="badge badge-high">高影響</span>` : w.signal === "watch" ? `<span class="badge badge-watch">觀察</span>` : ""}
+                   ${w.type === "stock" ? `<span class="badge badge-watch">${tr("個股", "Stock")}</span>` : ""}
+                   ${w.signal === "high" ? `<span class="badge badge-high">${tr("高影響", "High")}</span>` : w.signal === "watch" ? `<span class="badge badge-watch">${tr("觀察", "Watch")}</span>` : ""}
                  </div>
                </div>
                <div class="watch-status">${esc(w.status)}</div>
                ${w.note ? `<div class="watch-note">${esc(w.note)}</div>` : ""}
                ${w.next_earnings ? `
                  <div class="watch-earnings-row">
-                   <span>📅 下次法說／財報會議：${esc(w.next_earnings.event || "")} · ${esc(w.next_earnings.date || "")}</span>
+                   <span>📅 ${tr("下次法說／財報會議", "Next Earnings")}: ${esc(w.next_earnings.event || "")} · ${esc(w.next_earnings.date || "")}</span>
                  </div>` : ""}
                ${w.earnings_recap ? `
                  <details class="earnings-recap">
-                   <summary>📋 ${esc(w.earnings_recap.event_title || "查看最新法說／電話會議重點報告")} ▾</summary>
+                   <summary>📋 ${esc(w.earnings_recap.event_title || tr("查看最新法說／電話會議重點報告", "Latest Earnings Call Recap"))} ▾</summary>
                    ${(w.earnings_recap.metrics || []).length ? `
-                     <div><strong>關鍵財報數據：</strong></div>
+                     <div><strong>${tr("關鍵財報數據：", "Key Metrics:")}</strong></div>
                      <ul>${w.earnings_recap.metrics.map((m) => `<li>${esc(m)}</li>`).join("")}</ul>` : ""}
-                   ${w.earnings_recap.guidance ? `<div style="margin-bottom:6px;"><strong>下季財測指引：</strong>${esc(w.earnings_recap.guidance)}</div>` : ""}
+                   ${w.earnings_recap.guidance ? `<div style="margin-bottom:6px;"><strong>${tr("下季財測指引：", "Guidance:")}</strong>${esc(w.earnings_recap.guidance)}</div>` : ""}
                    ${(w.earnings_recap.highlights || []).length ? `
-                     <div><strong>會議重點摘要：</strong></div>
+                     <div><strong>${tr("會議重點摘要：", "Call Highlights:")}</strong></div>
                      <ul>${w.earnings_recap.highlights.map((h) => `<li>${esc(h)}</li>`).join("")}</ul>` : ""}
                    ${(w.earnings_recap.sources || []).length ? `
                      <div class="sources" style="margin-top:6px;">
@@ -551,26 +645,26 @@ function renderOverview(report) {
        </div>`
     : `<div class="card">
          <div class="card-head-row">
-           <div class="card-title">自選關注清單</div>
-           <button id="openWatchlistBtn" style="font-size:12px;padding:4px 10px;">⚙ 管理清單</button>
+           <div class="card-title">${tr("自選關注清單", "Watchlist")}</div>
+           <button id="openWatchlistBtn" style="font-size:12px;padding:4px 10px;">${tr("⚙ 管理清單", "⚙ Manage")}</button>
          </div>
-         <p class="subtitle" style="font-size:13px;margin:0;">本期沒有自選標的動態。可在這裡新增追蹤的個股或總經指標，明早的日報就會開始追蹤。</p>
+         <p class="subtitle" style="font-size:13px;margin:0;">${tr("本期沒有自選標的動態。可在這裡新增追蹤的個股或總經指標，明早的日報就會開始追蹤。", "No watchlist updates in this issue. Add stocks or macro indicators here to track them starting next edition.")}</p>
        </div>`;
 
   const topicsHtml = (report.sections || []).length
     ? `<div class="card">
-         <div class="card-title">主題快速切換</div>
+         <div class="card-title">${tr("主題快速切換", "Sections")}</div>
          <div class="topic-grid">
            ${orderedSections(report).map((s) => `
              <button class="topic-jump" data-jump="${esc(s.id)}">
-               <span class="topic-jump-name">${esc(SHORT_TAB_NAMES[s.id] || s.name)}${isTabRead(report.date, s.id) ? " ✓" : ""}</span>
-               <span class="topic-jump-meta">${(s.items || []).length} 則深度分析 →</span>
+               <span class="topic-jump-name">${esc(tabShortName(s.id, s.name))}${isTabRead(report.date, s.id) ? " ✓" : ""}</span>
+               <span class="topic-jump-meta">${(s.items || []).length} ${tr("則深度分析 →", "stories →")}</span>
              </button>
            `).join("")}
            ${report.weekly_recap ? `
              <button class="topic-jump" data-jump="weekly">
-               <span class="topic-jump-name">本週回顧${isTabRead(report.date, "weekly") ? " ✓" : ""}</span>
-               <span class="topic-jump-meta">週日特別整理 →</span>
+               <span class="topic-jump-name">${tr("本週回顧", "Weekly Recap")}${isTabRead(report.date, "weekly") ? " ✓" : ""}</span>
+               <span class="topic-jump-meta">${tr("週日特別整理 →", "Sunday Special →")}</span>
              </button>
            ` : ""}
          </div>
@@ -579,24 +673,24 @@ function renderOverview(report) {
 
   const watchHtml = (report.watch_ahead || []).length
     ? `<div class="card">
-         <div class="card-title">未來 24–72 小時關注焦點</div>
+         <div class="card-title">${tr("未來 24–72 小時關注焦點", "Watch Ahead (24–72h)")}</div>
          <ul class="exec-list">${report.watch_ahead.map((w) => `<li>${esc(w)}</li>`).join("")}</ul>
        </div>`
     : "";
 
   const correctionsHtml = (report.corrections || []).length
     ? `<div class="card">
-         <div class="card-title">更正紀錄</div>
+         <div class="card-title">${tr("更正紀錄", "Corrections")}</div>
          <div class="watchlist-list">
            ${report.corrections.map((c) => `
              <div class="watch-row">
                <div class="watch-row-top">
-                 <span class="watch-name">${esc(c.item_headline || "內容更正")}</span>
+                 <span class="watch-name">${esc(c.item_headline || tr("內容更正", "Correction"))}</span>
                  <span class="badge badge-watch">${esc(c.corrected_at || "")}</span>
                </div>
-               <div class="watch-note"><strong>原說法：</strong>${esc(c.original_claim)}</div>
-               <div class="watch-status"><strong>修正後：</strong>${esc(c.corrected_claim)}</div>
-               <div class="watch-note"><strong>更正依據：</strong>${esc(c.basis)}</div>
+               <div class="watch-note"><strong>${tr("原說法：", "Original: ")}</strong>${esc(c.original_claim)}</div>
+               <div class="watch-status"><strong>${tr("修正後：", "Corrected: ")}</strong>${esc(c.corrected_claim)}</div>
+               <div class="watch-note"><strong>${tr("更正依據：", "Basis: ")}</strong>${esc(c.basis)}</div>
              </div>
            `).join("")}
          </div>
@@ -605,9 +699,10 @@ function renderOverview(report) {
 
   return `
     ${renderMissingTodayBanner(report)}
+    ${missingEnBanner}
     <div class="masthead">
       <div class="issue-meta">DAILY WORLD BRIEF · ${esc(report.date)}</div>
-      <h1>${esc(report.title || "全球政經財金科技深度日報")}</h1>
+      <h1>${esc(report.title || tr("全球政經財金科技深度日報", "Global Macro, Markets & Tech Daily Brief"))}</h1>
       ${report.subtitle ? `<p class="subtitle">${esc(report.subtitle)}</p>` : ""}
     </div>
     ${renderCatchupCard(report)}
@@ -725,10 +820,10 @@ function dismissCatchup() {
 }
 
 const REVIEW_STATUS = {
-  happened: ["badge-followup", "✓ 如預期"],
-  partial: ["badge-watch", "◐ 部分發生"],
-  not_happened: ["badge-high", "✗ 未發生"],
-  pending: ["badge-pending", "… 待揭曉"],
+  happened: ["badge-followup", "✓ 如預期", "✓ Confirmed"],
+  partial: ["badge-watch", "◐ 部分發生", "◐ Partial"],
+  not_happened: ["badge-high", "✗ 未發生", "✗ Missed"],
+  pending: ["badge-pending", "… 待揭曉", "… Pending"],
 };
 
 // How earlier "watch ahead" calls actually played out.
@@ -737,10 +832,11 @@ function renderWatchReview(report) {
   if (!rows.length) return "";
   return `
     <div class="card">
-      <div class="card-title">預測回顧：之前說要注意的事</div>
+      <div class="card-title">${tr("預測回顧：之前說要注意的事", "Watch Review: Prior Calls")}</div>
       <div class="review-list">
         ${rows.map((r) => {
-          const [cls, label] = REVIEW_STATUS[r.status] || REVIEW_STATUS.pending;
+          const [cls, zhL, enL] = REVIEW_STATUS[r.status] || REVIEW_STATUS.pending;
+          const label = tr(zhL, enL);
           return `
             <div class="review-row">
               <div class="review-top"><span class="review-item">${esc(r.item)}</span><span class="badge ${cls}">${label}</span></div>
@@ -772,55 +868,56 @@ function renderSection(sec, report) {
     <div class="section-banner">
       <div>
         <h2>${esc(sec.name)}</h2>
-        <span>${esc(report.date)} · ${(sec.items || []).length} 則分析</span>
+        <span>${esc(report.date)} · ${(sec.items || []).length} ${tr("則分析", "stories")}</span>
       </div>
-      ${sec.id === "industry" ? `<button id="openIndustryCfgBtn" style="font-size:12px;padding:5px 10px;">⚙ 客製產業主題</button>` : ""}
+      ${sec.id === "industry" ? `<button id="openIndustryCfgBtn" style="font-size:12px;padding:5px 10px;">${tr("⚙ 客製產業主題", "⚙ Customize")}</button>` : ""}
     </div>
     ${(sec.items || []).map((item, idx) => {
-      const saved = isBookmarked(report.date, item.headline);
+      const origItem = (currentReport?.sections || []).find((s) => s.id === sec.id)?.items?.[idx] || item;
+      const saved = isBookmarked(report.date, origItem.headline);
       const sectorBadge = item.sector
         ? `<span class="badge badge-watch">${esc(item.sector)}</span>`
         : "";
       const credBadge = item.credibility === "official"
-        ? `<span class="badge badge-followup">官方證實</span>`
+        ? `<span class="badge badge-followup">${tr("官方證實", "Official")}</span>`
         : item.credibility === "corroborated"
-          ? `<span class="badge badge-watch">多方佐證</span>`
+          ? `<span class="badge badge-watch">${tr("多方佐證", "Corroborated")}</span>`
           : item.credibility === "rumor"
-            ? `<span class="badge badge-rumor">供應鏈傳聞・待證實</span>`
+            ? `<span class="badge badge-rumor">${tr("供應鏈傳聞・待證實", "Supply-Chain Rumor")}</span>`
             : "";
       const priorityBadge = item.priority === "high"
-        ? `<span class="badge badge-high">高影響</span>`
+        ? `<span class="badge badge-high">${tr("高影響", "High Impact")}</span>`
         : item.priority === "watch"
-          ? `<span class="badge badge-watch">中期觀察</span>`
+          ? `<span class="badge badge-watch">${tr("中期觀察", "Watch")}</span>`
           : "";
       const followBadge = item.is_followup
-        ? `<span class="badge badge-followup">延續追蹤</span>`
+        ? `<span class="badge badge-followup">${tr("延續追蹤", "Follow-up")}</span>`
         : "";
       return `
         <div class="card news-item">
           <div class="item-meta-row">
             <div class="item-badges">${sectorBadge}${credBadge}${priorityBadge}${followBadge}</div>
-            <button class="star-btn ${saved ? "saved" : ""}" data-star-sec="${esc(sec.id)}" data-star-idx="${idx}" title="收藏這則分析">
-              ${saved ? "★ 已收藏" : "☆ 收藏"}
+            <button class="star-btn ${saved ? "saved" : ""}" data-star-sec="${esc(sec.id)}" data-star-idx="${idx}" title="${tr("收藏這則分析", "Save story")}">
+              ${saved ? tr("★ 已收藏", "★ Saved") : tr("☆ 收藏", "☆ Save")}
             </button>
           </div>
           <h3>${esc(item.headline)}</h3>
-          ${item.followup_note ? `<div class="followup-box"><strong>延續進展：</strong>${esc(item.followup_note)}</div>` : ""}
+          ${item.followup_note ? `<div class="followup-box"><strong>${tr("延續進展：", "Update: ")}</strong>${esc(item.followup_note)}</div>` : ""}
           <div class="layer-facts">
-            <div class="layer-tag">客觀事實 · 內容與數據</div>
+            <div class="layer-tag">${tr("客觀事實 · 內容與數據", "Objective Facts · Data")}</div>
             <p class="news-summary" style="margin:0;">${esc(item.summary)}</p>
             ${(item.key_data || []).length ? `
               <ul class="facts-data-list">${item.key_data.map((d) => `<li>${esc(d)}</li>`).join("")}</ul>` : ""}
           </div>
           ${(item.analysis || item.impact) ? `
             <div class="layer-analysis">
-              <div class="layer-tag analysis">深度評析 · 結構與市場影響</div>
+              <div class="layer-tag analysis">${tr("深度評析 · 結構與市場影響", "Deep Analysis · Market Impact")}</div>
               <div class="analysis-body">
                 ${item.analysis ? `<p>${esc(item.analysis)}</p>` : ""}
                 ${item.impact ? `<p>${esc(item.impact)}</p>` : ""}
               </div>
             </div>` : ""}
-          ${item.verification_note ? `<div class="verify-badge">✓ 查核說明：${esc(item.verification_note)}</div>` : ""}
+          ${item.verification_note ? `<div class="verify-badge">✓ ${tr("查核說明：", "Verified: ")}${esc(item.verification_note)}</div>` : ""}
           <div class="sources">
             ${(item.sources || []).map((src) => `
               <a class="source-link" href="${esc(safeUrl(src.url))}" target="_blank" rel="noopener noreferrer">
@@ -829,7 +926,7 @@ function renderSection(sec, report) {
             `).join("")}
           </div>
           <div class="item-actions">
-            ${item.story_id ? `<button class="story-btn" data-story="${esc(item.story_id)}">🧵 事件時間軸</button>` : "<span></span>"}
+            ${item.story_id ? `<button class="story-btn" data-story="${esc(item.story_id)}">🧵 ${tr("事件時間軸", "Timeline")}</button>` : "<span></span>"}
             <div class="vote-group">
               ${[1, -1].map((v) => {
                 const on = getVote(report.date, item.headline) === v;
@@ -848,10 +945,10 @@ function renderWeeklyRecap(report) {
   if (!w) return renderOverview(report);
   return `
     <div class="section-banner">
-      <h2>本週全球回顧</h2>
+      <h2>${tr("本週全球回顧", "Weekly Global Recap")}</h2>
       <span>${esc(w.week_range || report.date)}</span>
     </div>
-    ${w.summary ? `<div class="card"><div class="card-title">一週總結</div><p class="news-summary" style="margin:0;">${esc(w.summary)}</p></div>` : ""}
+    ${w.summary ? `<div class="card"><div class="card-title">${tr("一週總結", "Week in Review")}</div><p class="news-summary" style="margin:0;">${esc(w.summary)}</p></div>` : ""}
     ${(w.themes || []).map((t) => `
       <div class="card news-item">
         <h3>${esc(t.title)}</h3>
@@ -860,7 +957,7 @@ function renderWeeklyRecap(report) {
     `).join("")}
     ${(w.next_week_calendar || []).length ? `
       <div class="card">
-        <div class="card-title">下週重大財經與政治行事曆</div>
+        <div class="card-title">${tr("下週重大財經與政治行事曆", "Next Week's Key Calendar")}</div>
         <ul class="exec-list">${w.next_week_calendar.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>
       </div>` : ""}
   `;
@@ -868,30 +965,32 @@ function renderWeeklyRecap(report) {
 
 function renderActiveTab() {
   if (!currentReport) return;
+  const locReport = getLocalizedReport(currentReport);
+  currentTabs = buildTabs(locReport);
   markTabRead(currentReport.date, activeTabId);
   renderTabBar();
   const view = document.getElementById("reportView");
   let bodyHtml = "";
   try {
     if (activeTabId === "overview") {
-      bodyHtml = renderOverview(currentReport);
+      bodyHtml = renderOverview(locReport);
     } else if (activeTabId === "weekly") {
-      bodyHtml = renderWeeklyRecap(currentReport);
+      bodyHtml = renderWeeklyRecap(locReport);
     } else {
-      const sec = (currentReport.sections || []).find((s) => s.id === activeTabId);
-      bodyHtml = sec ? renderSection(sec, currentReport) : renderOverview(currentReport);
+      const sec = (locReport.sections || []).find((s) => s.id === activeTabId);
+      bodyHtml = sec ? renderSection(sec, locReport) : renderOverview(locReport);
     }
   } catch (err) {
     // One malformed field shouldn't blank the whole reader; other tabs still work.
     console.error(err);
-    bodyHtml = `<div class="card locked-box"><p class="subtitle">這個分頁的資料格式異常，無法顯示。其他分頁不受影響，可左右滑動或從上方切換。</p></div>`;
+    bodyHtml = `<div class="card locked-box"><p class="subtitle">${tr("這個分頁的資料格式異常，無法顯示。其他分頁不受影響，可左右滑動或從上方切換。", "This section could not be rendered due to a data error. Other tabs remain available.")}</p></div>`;
   }
 
   view.innerHTML = `
     ${bodyHtml}
     ${renderPager()}
     <div class="footer-note">
-      v3.2 · AES-256-GCM 本機端對端解密 · 支援離線閱讀與左右滑動切換 · ${esc(currentReport.generated_at || currentReport.date)}
+      v3.3 · ${tr("AES-256-GCM 本機端對端解密 · 支援離線閱讀與左右滑動切換", "AES-256-GCM Local Decryption · Offline & Swipe Ready")} · ${esc(currentReport.generated_at || currentReport.date)}
     </div>
   `;
 

@@ -118,28 +118,44 @@
     .controls {
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 4px;
       flex-wrap: nowrap;
       min-width: 0;
     }
     .controls select {
-      height: 31px;
-      padding: 0 7px;
-      font-size: 12px;
+      height: 29px;
+      padding: 0 5px;
+      font-size: 11.5px;
       font-weight: 600;
-      max-width: 118px;
+      max-width: 102px;
     }
     .controls button {
-      width: 31px;
-      height: 31px;
+      width: 29px;
+      height: 29px;
       padding: 0;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 13px;
+      font-size: 12.5px;
       font-weight: 700;
       line-height: 1;
       flex-shrink: 0;
+    }
+    .controls #langBtn {
+      width: auto;
+      min-width: 30px;
+      padding: 0 6px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+    }
+    .controls #langBtn.en-active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    [data-theme="dark"] .controls #langBtn.en-active {
+      color: #0b1120;
     }
     select, button {
       font: inherit;
@@ -989,6 +1005,7 @@
         </div>
         <div class="controls">
           <select id="issueSelect" aria-label="選擇期數"></select>
+          <button id="langBtn" title="切換英文 / Switch Language" aria-label="Switch Language">EN</button>
           <button id="searchBtn" title="歷史全文搜尋" aria-label="歷史全文搜尋"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
           <button id="bookmarksBtn" title="我的收藏" aria-label="我的收藏">★</button>
           <button id="fontBtn" title="調整字體大小">A</button>
@@ -1119,6 +1136,6 @@
 
   <div id="toast" class="toast"></div>
 
-  <script src="./app.js?v=13"></script>
+  <script src="./app.js?v=14"></script>
 </body>
 </html>
