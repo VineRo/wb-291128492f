@@ -1,11 +1,11 @@
 // App shell is versioned (replaced on every release); encrypted data lives in its
 // own unversioned cache so offline issues survive app updates.
-const SHELL_CACHE = "world-brief-shell-v2.12";
+const SHELL_CACHE = "world-brief-shell-v2.13";
 const DATA_CACHE = "world-brief-data-v1";
 const SHELL_ASSETS = [
   "./",
   "./index.html",
-  "./app.js?v=12",
+  "./app.js?v=13",
   "./apple-touch-icon.png?v=4",
   "./icon-512.png?v=4",
 ];
@@ -89,7 +89,7 @@ self.addEventListener("fetch", (event) => {
   const cacheKey = encData ? new Request(url.origin + url.pathname) : req;
 
   event.respondWith(
-    fetch(req)
+    fetch(req, encData ? undefined : { cache: "no-cache" })
       .then((res) => {
         if (res && res.ok) {
           const clone = res.clone();

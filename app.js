@@ -807,7 +807,7 @@ function renderSection(sec, report) {
           <h3>${esc(item.headline)}</h3>
           ${item.followup_note ? `<div class="followup-box"><strong>延續進展：</strong>${esc(item.followup_note)}</div>` : ""}
           <div class="layer-facts">
-            <div class="layer-tag">客觀事實</div>
+            <div class="layer-tag">客觀事實 · 內容與數據</div>
             <p class="news-summary" style="margin:0;">${esc(item.summary)}</p>
             ${(item.key_data || []).length ? `
               <ul class="facts-data-list">${item.key_data.map((d) => `<li>${esc(d)}</li>`).join("")}</ul>` : ""}
@@ -891,7 +891,7 @@ function renderActiveTab() {
     ${bodyHtml}
     ${renderPager()}
     <div class="footer-note">
-      v3.1 · AES-256-GCM 本機端對端解密 · 支援離線閱讀與左右滑動切換 · ${esc(currentReport.generated_at || currentReport.date)}
+      v3.2 · AES-256-GCM 本機端對端解密 · 支援離線閱讀與左右滑動切換 · ${esc(currentReport.generated_at || currentReport.date)}
     </div>
   `;
 
@@ -1733,7 +1733,12 @@ async function boot(rawKey) {
 
     stickyHeader.classList.remove("hidden");
     if (currentIndex.issues && currentIndex.issues.length > 0) {
-      await loadIssue(currentIndex.issues[0].file);
+      let restoreTab = "overview";
+      try {
+        restoreTab = sessionStorage.getItem("wb_restore_tab") || "overview";
+        sessionStorage.removeItem("wb_restore_tab");
+      } catch {}
+      await loadIssue(currentIndex.issues[0].file, restoreTab);
     } else {
       loadingView.classList.add("hidden");
       reportView.innerHTML = `<div class="card"><p>目前尚無已發佈的日報。</p></div>`;
@@ -1767,10 +1772,11 @@ document.getElementById("refreshBtn").addEventListener("click", async () => {
   }
   if ("serviceWorker" in navigator) {
     try {
-      const reg = await navigator.serviceWorker.getRegistration("./");
-      if (reg) await reg.update();
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
     } catch {}
   }
+  try { sessionStorage.setItem("wb_restore_tab", activeTabId); } catch {}
   showToast("正在重新載入最新版本…");
   const hash = currentKeyStr ? `#${currentKeyStr}` : window.location.hash;
   window.location.replace(`${window.location.pathname}?r=${Date.now()}${hash}`);
